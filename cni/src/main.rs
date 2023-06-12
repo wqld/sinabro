@@ -1,3 +1,5 @@
+mod log;
+
 use std::{
     env,
     io::{self, BufRead},
@@ -5,6 +7,10 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use serde::Deserialize;
+
+use crate::log::Log;
+
+const LOG_FILE_PATH: &str = "/var/log/sinabro-cni.log";
 
 #[derive(Debug)]
 struct Opt {
@@ -55,9 +61,11 @@ impl Config {
 
 fn main() {
     let opt = Opt::from(io::stdin().lock()).unwrap();
+    let mut log = Log::new(LOG_FILE_PATH).unwrap();
 
-    println!("CNI Command: {}", opt.cmd);
-    println!("stdin: {opt:?}");
+    log.log(&format!("CNI command: {}\n", opt.cmd));
+    log.log(&format!("stdin: {opt:?}\n"));
+
     println!("{}", opt.handle().unwrap());
 }
 
