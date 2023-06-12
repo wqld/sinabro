@@ -63,8 +63,8 @@ fn main() {
     let opt = Opt::from(io::stdin().lock()).unwrap();
     let mut log = Log::new(LOG_FILE_PATH).unwrap();
 
-    log.log(&format!("CNI command: {}\n", opt.cmd));
-    log.log(&format!("stdin: {opt:?}\n"));
+    log.log(&format!("CNI command: {}\n", opt.cmd)).unwrap();
+    log.log(&format!("stdin: {opt:?}\n")).unwrap();
 
     println!("{}", opt.handle().unwrap());
 }
@@ -98,6 +98,7 @@ mod tests {
         assert_eq!(opt.netns, "/var/run/netns/123456789");
         assert_eq!(opt.contid, "123456789");
         assert_eq!(opt.ifname, "eth0");
+        assert_eq!(opt.config.version, "0.3.1");
         assert_eq!(opt.config.name, "sinabro");
         assert_eq!(opt.config.network, "10.244.0.0/16");
         assert_eq!(opt.config.subnet, "10.244.0.0/24");

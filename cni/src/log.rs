@@ -7,7 +7,7 @@ use std::{
 use anyhow::Result;
 
 pub struct Log {
-    file: File,
+    pub file: File,
 }
 
 impl Log {
@@ -23,5 +23,32 @@ impl Log {
         self.file.write_all(msg.as_bytes())?;
         self.file.flush()?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{fs, path::Path};
+
+    use super::Log;
+
+    #[test]
+    fn test_log() {
+        let path = "./test-cni.log";
+
+        let mut log = Log::new(path).unwrap();
+
+        assert!(Path::new(path).exists());
+
+        let msg = String::from("verify that log is being written property.");
+
+        log.log(&msg).unwrap();
+
+        let res = fs::read(path).unwrap();
+        let res = String::from_utf8(res).unwrap();
+
+        assert_eq!(msg, res);
+
+        fs::remove_file(&path).unwrap();
     }
 }
