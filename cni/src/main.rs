@@ -32,7 +32,7 @@ impl Opt {
         })
     }
 
-    fn handle(self) -> Result<String> {
+    fn handle(&self) -> Result<String> {
         match &self.cmd[..] {
             "ADD" => Ok("ADD".to_owned()),
             "DEL" => Ok("DEL".to_owned()),
@@ -63,8 +63,8 @@ fn main() {
     let opt = Opt::from(io::stdin().lock()).unwrap();
     let mut log = Log::new(LOG_FILE_PATH).unwrap();
 
-    log.log(&format!("CNI command: {}\n", opt.cmd)).unwrap();
-    log.log(&format!("stdin: {opt:?}\n")).unwrap();
+    log.write(&format!("CNI command: {}\n", opt.cmd)).unwrap();
+    log.write(&format!("stdin: {opt:?}\n")).unwrap();
 
     println!("{}", opt.handle().unwrap());
 }
@@ -73,7 +73,7 @@ fn main() {
 mod tests {
     use std::env;
 
-    use crate::Opt;
+    use super::*;
 
     #[test]
     fn opt_test() {

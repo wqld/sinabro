@@ -19,7 +19,7 @@ impl Log {
         Ok(Self { file })
     }
 
-    pub fn log(&mut self, msg: &str) -> Result<()> {
+    pub fn write(&mut self, msg: &str) -> Result<()> {
         self.file.write_all(msg.as_bytes())?;
         self.file.flush()?;
         Ok(())
@@ -30,7 +30,7 @@ impl Log {
 mod tests {
     use std::{fs, path::Path};
 
-    use super::Log;
+    use super::*;
 
     #[test]
     fn test_log() {
@@ -42,7 +42,7 @@ mod tests {
 
         let msg = String::from("verify that log is being written property.");
 
-        log.log(&msg).unwrap();
+        log.write(&msg).unwrap();
 
         let res = fs::read(path).unwrap();
         let res = String::from_utf8(res).unwrap();
