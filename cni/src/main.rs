@@ -36,7 +36,7 @@ impl Opt {
         match &self.cmd[..] {
             "ADD" => Ok("ADD".to_owned()),
             "DEL" => Ok("DEL".to_owned()),
-            "GET" => Ok("GET not supported".to_owned()),
+            "CHECK" => Ok("CHECK".to_owned()),
             "VERSION" => Ok("VERSION".to_owned()),
             _ => Err(anyhow!("Unknown CNI Command: {}", self.cmd)),
         }
