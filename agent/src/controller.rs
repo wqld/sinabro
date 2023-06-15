@@ -175,3 +175,61 @@ impl Diagnostics {
         Recorder::new(client, self.reporter.clone(), sinabro.object_ref(&()))
     }
 }
+
+/// State shared between the controller and the web server
+#[derive(Clone, Default)]
+pub struct State {
+    /// Diagnostics populated by the reconciler
+    diagnostics: Arc<RwLock<Diagnostics>>,
+    /// Metrics registry
+    registry: prometheus::Registry,
+}
+
+/// State wrapper around the controller outputs for the web server
+impl State {
+    /// Metrics getter
+    pub fn metrics(&self) -> Vec<prometheus::proto::MetricFamily> {
+        self.registry.gather()
+    }
+
+    /// State getter
+    pub async fn diagnostics(&self) -> Diagnostics {
+        self.diagnostics.read().await.clone()
+    }
+
+    // Create a Controller Context that can update State
+    pub fn to_context(&self, client: Client) -> Arc<Context> {
+        Arc::new(Context {
+            client,
+            metrics: Metrics::default().register(&self.registry).unwrap(),
+            diagnostics: self.diagnostics.clone(),
+        })
+    }
+}
+
+fn error_policy(sinabro: Arc<Sinabro>, error: &Error, ctx: Arc<Context>) -> Action {
+    warn!("reconcile failed: {error:?}");
+    ctx.metrics.reconcile_failure(&sinabro, error);
+    Action::requeue(Duration::from_secs(5 * 60))
+}
+
+/// Initialize the controller and shared state (given the CRD is installed)
+pub async fn run(state: State) {
+    let client = Client::try_default()
+        .await
+        .expect("failed to create kube client");
+    let sinabros = Api::<Sinabro>::all(client.clone());
+
+    if let Err(e) = sinabros.list(&ListParams::default().limit(1)).await {
+        error!("CRD is not queryable; {e:?}. Is the CRD installed?");
+        info!("Installation: cargo run --bin crdgen | kubectl apply -f -");
+        std::process::exit(1);
+    }
+
+    Controller::new(sinabros, Config::default().any_semantic())
+        .shutdown_on_signal()
+        .run(reconcile, error_policy, state.to_context(client))
+        .filter_map(|x| async move { std::result::Result::ok(x) })
+        .for_each(|_| futures::future::ready(()))
+        .await;
+}
