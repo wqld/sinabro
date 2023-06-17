@@ -59,23 +59,23 @@ pub struct Context {
     pub metrics: Metrics,
 }
 
-#[instrument(skip(ctx, sinabro), fields(trace_id))]
-async fn reconcile(sinabro: Arc<Sinabro>, ctx: Arc<Context>) -> Result<Action> {
+#[instrument(skip(ctx, sin), fields(trace_id))]
+async fn reconcile(sin: Arc<Sinabro>, ctx: Arc<Context>) -> Result<Action> {
     let trace_id = telemetry::get_trace_id();
     Span::current().record("trace_id", &field::display(&trace_id));
     let _timer = ctx.metrics.count_and_measure();
     ctx.diagnostics.write().await.last_event = Utc::now();
 
     // Sinabro is namespace scoped
-    let ns = sinabro.namespace().unwrap();
-    let sinabros: Api<Sinabro> = Api::namespaced(ctx.client.clone(), &ns);
+    let ns = sin.namespace().unwrap();
+    let sins: Api<Sinabro> = Api::namespaced(ctx.client.clone(), &ns);
 
-    info!("Reconciling Sinabro '{}' in {}", sinabro.name_any(), ns);
+    info!("Reconciling Sinabro '{}' in {}", sin.name_any(), ns);
 
-    finalizer(&sinabros, SINABRO_FINALIZER, sinabro, |event| async {
+    finalizer(&sins, SINABRO_FINALIZER, sin, |event| async {
         match event {
-            Finalizer::Apply(sinabro) => sinabro.reconcile(ctx.clone()).await,
-            Finalizer::Cleanup(sinabro) => sinabro.cleanup(ctx.clone()).await,
+            Finalizer::Apply(sin) => sin.reconcile(ctx.clone()).await,
+            Finalizer::Cleanup(sin) => sin.cleanup(ctx.clone()).await,
         }
     })
     .await
@@ -89,7 +89,7 @@ impl Sinabro {
         let recorder = ctx.diagnostics.read().await.recorder(client.clone(), self);
         let ns = self.namespace().unwrap();
         let name = self.name_any();
-        let sinabros: Api<Sinabro> = Api::namespaced(client, &ns);
+        let sins: Api<Sinabro> = Api::namespaced(client, &ns);
 
         let should_test = self.spec.test;
         if !self.was_tested() && should_test {
@@ -121,7 +121,7 @@ impl Sinabro {
         }));
 
         let ps = PatchParams::apply("cntrlr").force();
-        let _o = sinabros
+        let _o = sins
             .patch_status(&name, &ps, &new_status)
             .await
             .map_err(Error::KubeError)?;
@@ -171,8 +171,8 @@ impl Default for Diagnostics {
 }
 
 impl Diagnostics {
-    fn recorder(&self, client: Client, sinabro: &Sinabro) -> Recorder {
-        Recorder::new(client, self.reporter.clone(), sinabro.object_ref(&()))
+    fn recorder(&self, client: Client, sin: &Sinabro) -> Recorder {
+        Recorder::new(client, self.reporter.clone(), sin.object_ref(&()))
     }
 }
 
@@ -207,9 +207,9 @@ impl State {
     }
 }
 
-fn error_policy(sinabro: Arc<Sinabro>, error: &Error, ctx: Arc<Context>) -> Action {
+fn error_policy(sin: Arc<Sinabro>, error: &Error, ctx: Arc<Context>) -> Action {
     warn!("reconcile failed: {error:?}");
-    ctx.metrics.reconcile_failure(&sinabro, error);
+    ctx.metrics.reconcile_failure(&sin, error);
     Action::requeue(Duration::from_secs(5 * 60))
 }
 
@@ -218,18 +218,129 @@ pub async fn run(state: State) {
     let client = Client::try_default()
         .await
         .expect("failed to create kube client");
-    let sinabros = Api::<Sinabro>::all(client.clone());
+    let sins = Api::<Sinabro>::all(client.clone());
 
-    if let Err(e) = sinabros.list(&ListParams::default().limit(1)).await {
+    if let Err(e) = sins.list(&ListParams::default().limit(1)).await {
         error!("CRD is not queryable; {e:?}. Is the CRD installed?");
         info!("Installation: cargo run --bin crdgen | kubectl apply -f -");
         std::process::exit(1);
     }
 
-    Controller::new(sinabros, Config::default().any_semantic())
+    Controller::new(sins, Config::default().any_semantic())
         .shutdown_on_signal()
         .run(reconcile, error_policy, state.to_context(client))
         .filter_map(|x| async move { std::result::Result::ok(x) })
         .for_each(|_| futures::future::ready(()))
         .await;
+}
+
+// Mock tests relying on fixtures.rs and its primitive apiserver mocks
+#[cfg(test)]
+mod test {
+    use crate::fixtures::{timeout_after_1s, Scenario};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn sinabro_without_finalizer_gets_a_finalizer() {
+        let (ctx, server, _) = Context::test();
+        let sin = Sinabro::test();
+        let mock_server = server.run(Scenario::FinalizerCreation(sin.clone()));
+
+        reconcile(Arc::new(sin), ctx).await.expect("reconciler");
+        timeout_after_1s(mock_server).await;
+    }
+
+    #[tokio::test]
+    async fn finalized_sin_causes_status_patch() {
+        let (ctx, server, _) = Context::test();
+        let sin = Sinabro::test().finalized();
+        let mock_server = server.run(Scenario::StatusPatch(sin.clone()));
+
+        reconcile(Arc::new(sin), ctx).await.expect("reconciler");
+        timeout_after_1s(mock_server).await;
+    }
+
+    #[tokio::test]
+    async fn finalized_sin_with_test_causes_event_and_test_patch() {
+        let (ctx, server, _) = Context::test();
+        let sin = Sinabro::test().finalized().needs_test();
+        let scenario = Scenario::EventPublishThenStatusPatch("TestRequested".into(), sin.clone());
+        let mock_server = server.run(scenario);
+
+        reconcile(Arc::new(sin), ctx).await.expect("reconciler");
+        timeout_after_1s(mock_server).await;
+    }
+
+    #[tokio::test]
+    async fn finalized_sin_with_delete_timestamp_causes_delete() {
+        let (ctx, server, _) = Context::test();
+        let sin = Sinabro::test().finalized().needs_deletes();
+        let mock_server = server.run(Scenario::Cleanup("DeleteRequested".into(), sin.clone()));
+
+        reconcile(Arc::new(sin), ctx).await.expect("reconciler");
+        timeout_after_1s(mock_server).await;
+    }
+
+    #[tokio::test]
+    async fn illegal_sin_reconcile_errors_which_bumps_failure_metrics() {
+        let (ctx, server, _registry) = Context::test();
+        let sin = Arc::new(Sinabro::illegal().finalized());
+        let mock_server = server.run(Scenario::RadioSilence);
+
+        let res = reconcile(sin.clone(), ctx.clone()).await;
+        timeout_after_1s(mock_server).await;
+        assert!(res.is_err(), "apply reconciler fails on illegal sin");
+
+        let err = res.unwrap_err();
+        assert!(err.to_string().contains("Illegal Sinabro"));
+
+        // calling error policy with the reconciler error should cause the correct metric to be set
+        error_policy(sin.clone(), &err, ctx.clone());
+
+        let failures = ctx
+            .metrics
+            .failures
+            .with_label_values(&["illegal", "finalizererror(applyfailed(illegalsinabro))"])
+            .get();
+        assert_eq!(failures, 1);
+    }
+
+    // Integration test without mocks
+    use kube::api::{Api, ListParams, Patch, PatchParams};
+    #[tokio::test]
+    #[ignore = "uses k8s current-context"]
+    async fn integration_reconcile_should_set_status_and_send_event() {
+        let client = kube::Client::try_default().await.unwrap();
+        let ctx = super::State::default().to_context(client.clone());
+
+        // create a test sin
+        let sin = Sinabro::test().finalized().needs_test();
+        let sins: Api<Sinabro> = Api::namespaced(client.clone(), "default");
+        let params = PatchParams::apply("ctrltest");
+        let patch = Patch::Apply(sin.clone());
+        sins.patch("test", &params, &patch).await.unwrap();
+
+        // reconcile it (as if it was just applied to the cluster like this)
+        reconcile(Arc::new(sin), ctx).await.unwrap();
+
+        // verify side-effects happened
+        let output = sins.get_status("test").await.unwrap();
+        assert!(output.status.is_some());
+
+        // verify test event was found
+        let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
+        let opts =
+            ListParams::default().fields("involvedObject.kund=Sinabro,involvedObject.name=test");
+        let event = events
+            .list(&opts)
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|e| e.reason.as_deref() == Some("TestRequested"))
+            .last()
+            .unwrap();
+        dbg!("got ev: {:?}", &event);
+        assert_eq!(event.action.as_deref(), Some("Testing"));
+    }
 }

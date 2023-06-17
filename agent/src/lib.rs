@@ -28,3 +28,6 @@ impl Error {
         format!("{self:?}").to_lowercase()
     }
 }
+
+#[cfg(test)]
+pub mod fixtures;
