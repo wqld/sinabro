@@ -1,8 +1,8 @@
 use std::net::SocketAddr;
 
+use agent::{controller, telemetry};
 use axum::{extract::State, response::IntoResponse, routing::get, Json, Router};
 use prometheus::{Encoder, TextEncoder};
-use sinabro::{controller, telemetry};
 
 #[tokio::main]
 async fn main() {
@@ -10,7 +10,7 @@ async fn main() {
 
     // Initialize Kubernetes controller state
     let state = controller::State::default();
-    let controller = controller::run(state.clone());
+    let _controller = controller::run(state.clone());
 
     let app = Router::new()
         .route("/", get(index))

@@ -3,6 +3,7 @@ name = "sinabro"
 version = "0.0.1"
 authors = ["Wongyu Lee <kyu21@outlook.com>"]
 description = "eBPF-based Networking, Security, and Observability"
+default-run = "agent"
 license = "Apache-2.0"
 edition = "2021"
 

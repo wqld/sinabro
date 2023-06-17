@@ -40,7 +40,7 @@ impl Sinabro {
         use chrono::prelude::{DateTime, TimeZone, Utc};
         use k8s_openapi::apimachinery::pkg::apis::meta::v1::Time;
 
-        let now: DateTime<Utc> = Utc.with_ymd_and_hms(2017, 04, 02, 12, 50, 32).unwrap();
+        let now: DateTime<Utc> = Utc.with_ymd_and_hms(2017, 4, 2, 12, 50, 32).unwrap();
         self.meta_mut().deletion_timestamp = Some(Time(now));
         self
     }
