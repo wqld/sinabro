@@ -6,6 +6,18 @@ description = "eBPF-based Networking, Security, and Observability"
 license = "Apache-2.0"
 edition = "2021"
 
+[[bin]]
+name = "agent"
+path = "src/main.rs"
+
+[[bin]]
+name = "crdgen"
+path = "src/crdgen.rs"
+
+[lib]
+name = "agent"
+path = "src/lib.rs"
+
 [features]
 default = []
 telemetry = ["tonic", "opentelemetry-otlp"]
@@ -13,7 +25,7 @@ telemetry = ["tonic", "opentelemetry-otlp"]
 [dependencies]
 axum = "0.6.18"
 tokio = { version = "1.28.2", features = ["full"] }
-kube = { version = "0.83.0", features = ["runtime", "derive"] }
+kube = { version = "0.83.0", features = ["runtime", "client", "derive"] }
 k8s-openapi = { version = "0.18.0", features = ["v1_26"] }
 futures = "0.3.28"
 serde = { version = "1.0.164", features = ["derive"] }
