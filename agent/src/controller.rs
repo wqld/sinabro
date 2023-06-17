@@ -331,7 +331,7 @@ mod test {
         // verify test event was found
         let events: Api<k8s_openapi::api::core::v1::Event> = Api::all(client.clone());
         let opts =
-            ListParams::default().fields("involvedObject.kund=Sinabro,involvedObject.name=test");
+            ListParams::default().fields("involvedObject.kind=Sinabro,involvedObject.name=test");
         let event = events
             .list(&opts)
             .await
