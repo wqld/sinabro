@@ -1,0 +1,115 @@
+---
+# Source: agent/templates/rbac.yaml
+# Scoped service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent
+  labels:
+    app: agent
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/version: "1.16.0"
+  namespace: default
+automountServiceAccountToken: true
+---
+# Source: agent/templates/rbac.yaml
+# Access for the service account
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: agent
+rules:
+  - apiGroups: ["sinabro.io"]
+    resources: ["sinabros", "sinabros/status"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create"]
+---
+# Source: agent/templates/rbac.yaml
+# Binding the role to the account
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: agent
+subjects:
+- kind: ServiceAccount
+  namespace: default
+  name: agent
+roleRef:
+  kind: ClusterRole
+  name: agent
+  apiGroup: rbac.authorization.k8s.io
+---
+# Source: agent/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent
+  labels:
+    app: agent
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/version: "1.16.0"
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: agent
+---
+# Source: agent/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent
+  namespace: default
+  labels:
+    app: agent
+    app.kubernetes.io/name: agent
+    app.kubernetes.io/version: "1.16.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent
+  template:
+    metadata:
+      labels:
+        app: agent
+      annotations:
+        kubectl.kubernetes.io/default-container: agent
+    spec:
+      serviceAccountName: agent
+      securityContext:
+        {}
+      containers:
+        - name: agent
+          image: "21kyu/agent:1.16.0"
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            {}
+          resources:
+            limits:
+              cpu: 100m
+              memory: 128Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          # env:
+          #   - name: OPENTELEMETRY_ENDPOINT_URL
+          #     value: ""
+          #   - name: RUST_LOG
+          #     value: "info,kube=debug,controller=debug"
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5

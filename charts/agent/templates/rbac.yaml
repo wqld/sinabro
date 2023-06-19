@@ -1,0 +1,40 @@
+# Scoped service account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "agent.fullname" . }}
+  labels:
+    {{- include "agent.labels" . | nindent 4 }}
+  {{- with .Values.serviceAccount.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  namespace: {{ .Values.namespace }}
+automountServiceAccountToken: true
+---
+# Access for the service account
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "agent.fullname" . }}
+rules:
+  - apiGroups: ["sinabro.io"]
+    resources: ["sinabros", "sinabros/status"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["events.k8s.io"]
+    resources: ["events"]
+    verbs: ["create"]
+---
+# Binding the role to the account
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "agent.fullname" . }}
+subjects:
+- kind: ServiceAccount
+  namespace: {{ .Values.namespace }}
+  name: {{ include "agent.fullname" . }}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "agent.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io

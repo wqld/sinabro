@@ -43,6 +43,7 @@ tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
 opentelemetry = { version = "0.19.0", features = ["trace", "rt-tokio"] }
 opentelemetry-otlp = { version = "0.12.0", features = ["tokio"], optional = true }
 tonic = { version = "0.8", optional = true } # 0.9 blocked on opentelemetry-otlp release
+openssl = { version = "0.10.54", features = ["vendored"] }
 
 [dev-dependencies]
 assert-json-diff = "2.0.2"
