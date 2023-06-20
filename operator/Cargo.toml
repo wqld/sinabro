@@ -1,0 +1,54 @@
+[package]
+name = "sinabro-operator"
+version = "0.0.1"
+authors = ["Wongyu Lee <kyu21@outlook.com>"]
+description = "eBPF-based Networking, Security, and Observability"
+default-run = "operator"
+license = "Apache-2.0"
+edition = "2021"
+
+[[bin]]
+name = "operator"
+path = "src/main.rs"
+
+[[bin]]
+name = "crdgen"
+path = "src/crdgen.rs"
+
+[lib]
+name = "operator"
+path = "src/lib.rs"
+
+[features]
+default = []
+telemetry = ["tonic", "opentelemetry-otlp"]
+
+[dependencies]
+axum = "0.6.18"
+tokio = { version = "1.28.2", features = ["full"] }
+kube = { version = "0.83.0", features = ["runtime", "client", "derive"] }
+k8s-openapi = { version = "0.18.0", features = ["v1_26"] }
+futures = "0.3.28"
+serde = { version = "1.0.164", features = ["derive"] }
+serde_json = "1.0.96"
+serde_yaml = "0.9.21"
+tracing = "0.1.37"
+thiserror = "1.0.40"
+anyhow = "1.0.71"
+prometheus = "0.13.3"
+schemars = { version = "0.8.12", features = ["chrono"] }
+chrono = { version = "0.4.26", features = ["serde"] }
+tracing-opentelemetry = "0.19.0"
+tracing-subscriber = { version = "0.3.17", features = ["json", "env-filter"] }
+opentelemetry = { version = "0.19.0", features = ["trace", "rt-tokio"] }
+opentelemetry-otlp = { version = "0.12.0", features = [
+    "tokio",
+], optional = true }
+tonic = { version = "0.8", optional = true } # 0.9 blocked on opentelemetry-otlp release
+openssl = { version = "0.10.54", features = ["vendored"] }
+
+[dev-dependencies]
+assert-json-diff = "2.0.2"
+http = "0.2.9"
+hyper = "0.14.26"
+tower-test = "0.4.0"

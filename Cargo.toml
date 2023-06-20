@@ -1,6 +1,7 @@
 [workspace]
 
 members = [
+  "cni",
   "agent",
-  "cni"
+  "operator"
 ]

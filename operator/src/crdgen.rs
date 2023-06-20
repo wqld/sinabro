@@ -1,4 +1,4 @@
-use agent::controller::Sinabro;
+use operator::controller::Sinabro;
 use kube::CustomResourceExt;
 
 fn main() {

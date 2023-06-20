@@ -1,4 +1,4 @@
 FROM cgr.dev/chainguard/static
-COPY --chown=nonroot:nonroot ./agent/agent /app/
+COPY --chown=nonroot:nonroot ./operator/operator /app/
 EXPOSE 8080
-ENTRYPOINT ["/app/agent"]
+ENTRYPOINT ["/app/operator"]

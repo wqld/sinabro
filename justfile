@@ -8,10 +8,10 @@ install-crd: generate
 
 generate:
   cargo run --bin crdgen > yaml/crd.yaml
-  helm template charts/agent > yaml/deploy.yaml
+  helm template charts/operator > yaml/deploy.yaml
 
 # compile for musl (for docker image)
-# cargo build --release --features={{features}} --bin agent
+# cargo build --release --features={{features}} --bin operator
 compile features="":
   #!/usr/bin/env bash
   docker run --rm \
@@ -25,5 +25,5 @@ compile features="":
     export AR_aarch64_unknown_linux_musl=llvm-ar && \
     export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_RUSTFLAGS='-Clink-self-contained=yes -Clinker=rust-lld' && \
     rustup target add aarch64-unknown-linux-musl && \
-    cargo build --target aarch64-unknown-linux-musl --release --features={{features}} --bin agent"
-  cp target/aarch64-unknown-linux-musl/release/agent ./agent/
+    cargo build --target aarch64-unknown-linux-musl --release --features={{features}} --bin operator"
+  cp target/aarch64-unknown-linux-musl/release/operator ./operator/

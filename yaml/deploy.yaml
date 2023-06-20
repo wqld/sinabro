@@ -1,23 +1,23 @@
 ---
-# Source: agent/templates/rbac.yaml
+# Source: operator/templates/rbac.yaml
 # Scoped service account
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: agent
+  name: operator
   labels:
-    app: agent
-    app.kubernetes.io/name: agent
+    app: operator
+    app.kubernetes.io/name: operator
     app.kubernetes.io/version: "1.16.0"
   namespace: default
 automountServiceAccountToken: true
 ---
-# Source: agent/templates/rbac.yaml
+# Source: operator/templates/rbac.yaml
 # Access for the service account
 kind: ClusterRole
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: agent
+  name: operator
 rules:
   - apiGroups: ["sinabro.io"]
     resources: ["sinabros", "sinabros/status"]
@@ -26,29 +26,29 @@ rules:
     resources: ["events"]
     verbs: ["create"]
 ---
-# Source: agent/templates/rbac.yaml
+# Source: operator/templates/rbac.yaml
 # Binding the role to the account
 kind: ClusterRoleBinding
 apiVersion: rbac.authorization.k8s.io/v1
 metadata:
-  name: agent
+  name: operator
 subjects:
 - kind: ServiceAccount
   namespace: default
-  name: agent
+  name: operator
 roleRef:
   kind: ClusterRole
-  name: agent
+  name: operator
   apiGroup: rbac.authorization.k8s.io
 ---
-# Source: agent/templates/service.yaml
+# Source: operator/templates/service.yaml
 apiVersion: v1
 kind: Service
 metadata:
-  name: agent
+  name: operator
   labels:
-    app: agent
-    app.kubernetes.io/name: agent
+    app: operator
+    app.kubernetes.io/name: operator
     app.kubernetes.io/version: "1.16.0"
 spec:
   type: ClusterIP
@@ -58,36 +58,36 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: agent
+    app: operator
 ---
-# Source: agent/templates/deployment.yaml
+# Source: operator/templates/deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: agent
+  name: operator
   namespace: default
   labels:
-    app: agent
-    app.kubernetes.io/name: agent
+    app: operator
+    app.kubernetes.io/name: operator
     app.kubernetes.io/version: "1.16.0"
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: agent
+      app: operator
   template:
     metadata:
       labels:
-        app: agent
+        app: operator
       annotations:
-        kubectl.kubernetes.io/default-container: agent
+        kubectl.kubernetes.io/default-container: operator
     spec:
-      serviceAccountName: agent
+      serviceAccountName: operator
       securityContext:
         {}
       containers:
-        - name: agent
-          image: "21kyu/agent:1.16.0"
+        - name: operator
+          image: "sinabro/operator:1.16.0"
           imagePullPolicy: IfNotPresent
           securityContext:
             {}
