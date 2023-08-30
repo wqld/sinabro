@@ -1,7 +1,3 @@
 [workspace]
 
-members = [
-  "cni",
-  "agent",
-  "operator"
-]
+members = ["cni", "agent", "netlink", "operator"]
