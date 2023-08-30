@@ -2,6 +2,8 @@ use std::{io::Error, mem::size_of, os::fd::RawFd};
 
 use anyhow::Result;
 
+use crate::{consts, message::msg::NetlinkMessage};
+
 pub struct NetlinkSocket {
     fd: RawFd,
     lsa: SockAddrNetlink,
@@ -46,6 +48,47 @@ impl NetlinkSocket {
             res if res >= 0 => Ok(()),
             _ => Err(Error::last_os_error().into()),
         }
+    }
+
+    pub fn recv(&self) -> Result<(Vec<NetlinkMessage>, libc::sockaddr_nl)> {
+        let mut from = unsafe { std::mem::zeroed::<libc::sockaddr_nl>() };
+        let mut buf: [u8; consts::RECV_BUF_SIZE] = [0; consts::RECV_BUF_SIZE];
+        match unsafe {
+            libc::recvfrom(
+                self.fd,
+                buf.as_mut_ptr() as *mut libc::c_void,
+                buf.len(),
+                0,
+                &mut from as *mut _ as *mut libc::sockaddr,
+                &mut size_of::<libc::sockaddr_nl>().try_into().unwrap_or(0),
+            )
+        } {
+            res if res >= 0 => {
+                let msgs = NetlinkMessage::from(&buf[..res as usize])?;
+                Ok((msgs, from))
+            }
+            _ => Err(Error::last_os_error().into()),
+        }
+    }
+
+    pub fn pid(&self) -> Result<u32> {
+        let mut rsa: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
+        match unsafe {
+            libc::getsockname(
+                self.fd,
+                &mut rsa as *mut _ as *mut libc::sockaddr,
+                &mut size_of::<libc::sockaddr_nl>().try_into().unwrap_or(0),
+            )
+        } {
+            res if res >= 0 => Ok(rsa.nl_pid),
+            _ => Err(Error::last_os_error().into()),
+        }
+    }
+}
+
+impl Drop for NetlinkSocket {
+    fn drop(&mut self) {
+        unsafe { libc::close(self.fd) };
     }
 }
 
