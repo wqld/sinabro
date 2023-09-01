@@ -1,4 +1,8 @@
-use std::{io::Error, mem::size_of, os::fd::RawFd};
+use std::{
+    io::Error,
+    mem::{size_of, zeroed},
+    os::fd::RawFd,
+};
 
 use anyhow::Result;
 
@@ -6,53 +10,51 @@ use crate::{consts, message::msg::NetlinkMessage};
 
 pub struct NetlinkSocket {
     fd: RawFd,
-    lsa: SockAddrNetlink,
 }
 
 impl NetlinkSocket {
-    pub fn new(protocol: i32, pid: u32, groups: u32) -> Result<Self> {
-        match unsafe {
-            libc::socket(
-                libc::AF_NETLINK,
-                libc::SOCK_RAW | libc::SOCK_CLOEXEC,
-                protocol,
-            )
-        } {
-            fd if fd >= 0 => Ok(Self {
-                fd,
-                lsa: SockAddrNetlink::new(pid, groups),
-            }),
-            _ => Err(Error::last_os_error().into()),
+    pub fn new(proto: i32) -> Result<Self> {
+        match unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_RAW | libc::SOCK_CLOEXEC, proto) }
+        {
+            -1 => Err(Error::last_os_error().into()),
+            fd => Ok(Self { fd }),
         }
     }
 
-    pub fn connect(protocol: i32, pid: u32, groups: u32) -> Result<Self> {
-        let sock = Self::new(protocol, pid, groups)?;
-        sock.bind()?;
+    pub fn connect(proto: i32, pid: u32, groups: u32) -> Result<Self> {
+        let sock = Self::new(proto)?;
+        sock.bind(pid, groups)?;
         Ok(sock)
     }
 
-    fn bind(&self) -> Result<()> {
-        let (addr, len) = self.lsa.as_raw();
+    fn bind(&self, pid: u32, groups: u32) -> Result<()> {
+        let mut addr = unsafe { zeroed::<libc::sockaddr_nl>() };
+        addr.nl_family = libc::AF_NETLINK as u16;
+        addr.nl_pid = pid;
+        addr.nl_groups = groups;
 
-        match unsafe { libc::bind(self.fd, addr, len) } {
-            res if res >= 0 => Ok(()),
-            _ => Err(Error::last_os_error().into()),
+        match unsafe {
+            libc::bind(
+                self.fd,
+                &addr as *const _ as *const libc::sockaddr,
+                size_of::<libc::sockaddr_nl>() as u32,
+            )
+        } {
+            -1 => Err(Error::last_os_error().into()),
+            _ => Ok(()),
         }
     }
 
     pub fn send(&self, buf: &[u8]) -> Result<()> {
-        let (addr, len) = self.lsa.as_raw();
-
-        match unsafe { libc::sendto(self.fd, buf.as_ptr() as _, buf.len(), 0, addr, len) } {
-            res if res >= 0 => Ok(()),
-            _ => Err(Error::last_os_error().into()),
+        match unsafe { libc::send(self.fd, buf.as_ptr() as _, buf.len(), 0) } {
+            -1 => Err(Error::last_os_error().into()),
+            _ => Ok(()),
         }
     }
 
     pub fn recv(&self) -> Result<(Vec<NetlinkMessage>, libc::sockaddr_nl)> {
-        let mut from = unsafe { std::mem::zeroed::<libc::sockaddr_nl>() };
-        let mut buf: [u8; consts::RECV_BUF_SIZE] = [0; consts::RECV_BUF_SIZE];
+        let mut from = unsafe { zeroed::<libc::sockaddr_nl>() };
+        let mut buf = [0; consts::RECV_BUF_SIZE];
         match unsafe {
             libc::recvfrom(
                 self.fd,
@@ -63,16 +65,13 @@ impl NetlinkSocket {
                 &mut size_of::<libc::sockaddr_nl>().try_into().unwrap_or(0),
             )
         } {
-            res if res >= 0 => {
-                let msgs = NetlinkMessage::from(&buf[..res as usize])?;
-                Ok((msgs, from))
-            }
-            _ => Err(Error::last_os_error().into()),
+            -1 => Err(Error::last_os_error().into()),
+            len => Ok((NetlinkMessage::from(&buf[..len as usize])?, from)),
         }
     }
 
     pub fn pid(&self) -> Result<u32> {
-        let mut rsa: libc::sockaddr_nl = unsafe { std::mem::zeroed() };
+        let mut rsa = unsafe { zeroed::<libc::sockaddr_nl>() };
         match unsafe {
             libc::getsockname(
                 self.fd,
@@ -80,8 +79,8 @@ impl NetlinkSocket {
                 &mut size_of::<libc::sockaddr_nl>().try_into().unwrap_or(0),
             )
         } {
-            res if res >= 0 => Ok(rsa.nl_pid),
-            _ => Err(Error::last_os_error().into()),
+            -1 => Err(Error::last_os_error().into()),
+            _ => Ok(rsa.nl_pid),
         }
     }
 }
@@ -93,28 +92,76 @@ impl Drop for NetlinkSocket {
 }
 
 // SockaddrNetlink implements the Sockaddr interface for AF_NETLINK type sockets.
-#[derive(Default)]
-pub struct SockAddrNetlink {
-    pub family: u16,
-    pub pad: u16,
-    pub pid: u32,
-    pub groups: u32,
-}
+pub struct SockAddrNetlink(libc::sockaddr_nl);
 
 impl SockAddrNetlink {
     pub fn new(pid: u32, groups: u32) -> Self {
-        Self {
-            family: libc::AF_NETLINK as u16,
-            pid,
-            groups,
-            ..Default::default()
-        }
+        let mut addr = unsafe { std::mem::zeroed::<libc::sockaddr_nl>() };
+        addr.nl_family = libc::AF_NETLINK as u16;
+        addr.nl_pid = pid;
+        addr.nl_groups = groups;
+        Self(addr)
     }
 
-    pub fn as_raw(&self) -> (*const libc::sockaddr, libc::socklen_t) {
+    pub fn as_raw(&self) -> (*const libc::sockaddr, u32) {
         (
             self as *const _ as *const libc::sockaddr,
-            size_of::<SockAddrNetlink>() as libc::socklen_t,
+            size_of::<SockAddrNetlink>() as u32,
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_netlink_socket() {
+        let s = NetlinkSocket::connect(libc::NETLINK_ROUTE, 0, 0).unwrap();
+
+        // This is a valid message for listing the network links on the system
+        let msg = [
+            0x14, 0x00, 0x00, 0x00, 0x12, 0x00, 0x01, 0x03, 0xfd, 0xfe, 0x38, 0x5c, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+        ];
+
+        s.send(&msg[..]).unwrap();
+
+        let pid = s.pid().unwrap();
+        let mut res: Vec<Vec<u8>> = Vec::new();
+
+        'done: loop {
+            let (netlink_msgs, from) = s.recv().unwrap();
+
+            if from.nl_pid != consts::PID_KERNEL {
+                println!("received message from unknown source");
+                continue;
+            }
+
+            for m in netlink_msgs {
+                if m.header.pid != pid {
+                    println!("received message with wrong pid");
+                    continue;
+                }
+
+                match m.header.ty {
+                    consts::NLMSG_ERROR => {
+                        println!("the kernel responded with an error");
+                        return;
+                    }
+                    consts::NLMSG_DONE => {
+                        break 'done;
+                    }
+                    _ => {
+                        res.push(m.data);
+                    }
+                }
+            }
+        }
+
+        res.iter().for_each(|r| {
+            println!("{:?}", r);
+        });
     }
 }
