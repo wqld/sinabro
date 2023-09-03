@@ -6,14 +6,14 @@ use std::{
 
 use anyhow::Result;
 
-use crate::{consts, message::msg::NetlinkMessage};
+use crate::{consts, message::ln::NetlinkMessages};
 
 pub struct NetlinkSocket {
     fd: RawFd,
 }
 
 impl NetlinkSocket {
-    pub fn new(proto: i32) -> Result<Self> {
+    fn new(proto: i32) -> Result<Self> {
         match unsafe { libc::socket(libc::AF_NETLINK, libc::SOCK_RAW | libc::SOCK_CLOEXEC, proto) }
         {
             -1 => Err(Error::last_os_error().into()),
@@ -52,7 +52,7 @@ impl NetlinkSocket {
         }
     }
 
-    pub fn recv(&self) -> Result<(Vec<NetlinkMessage>, libc::sockaddr_nl)> {
+    pub fn recv(&self) -> Result<(NetlinkMessages, libc::sockaddr_nl)> {
         let mut from = unsafe { zeroed::<libc::sockaddr_nl>() };
         let mut buf = [0; consts::RECV_BUF_SIZE];
         match unsafe {
@@ -66,7 +66,7 @@ impl NetlinkSocket {
             )
         } {
             -1 => Err(Error::last_os_error().into()),
-            len => Ok((NetlinkMessage::from(&buf[..len as usize])?, from)),
+            len => Ok((buf[..len as usize].into(), from)),
         }
     }
 
@@ -114,6 +114,8 @@ impl SockAddrNetlink {
 #[cfg(test)]
 mod tests {
 
+    use crate::message::rt::{deserialize, IfInfoMessage};
+
     use super::*;
 
     #[test]
@@ -145,7 +147,7 @@ mod tests {
                     continue;
                 }
 
-                match m.header.ty {
+                match m.header.kind {
                     consts::NLMSG_ERROR => {
                         println!("the kernel responded with an error");
                         return;
@@ -161,7 +163,8 @@ mod tests {
         }
 
         res.iter().for_each(|r| {
-            println!("{:?}", r);
+            let msg = deserialize::<IfInfoMessage>(r);
+            println!("{:?}", msg);
         });
     }
 }
