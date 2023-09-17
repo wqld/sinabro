@@ -1,8 +1,26 @@
 use std::mem::size_of;
 
-use anyhow::{anyhow, Result};
+use crate::{consts, utils::align_of};
 
-use crate::consts;
+pub struct NetlinkMessage {
+    pub header: NetlinkHeader,
+    pub payload: Vec<u8>,
+    pub len: usize,
+}
+
+impl<'a> From<&'a [u8]> for NetlinkMessage {
+    fn from(buf: &'a [u8]) -> Self {
+        let header: NetlinkHeader = buf.into();
+        let len = align_of(header.len as usize, consts::NLMSG_ALIGN_TO);
+        let payload = buf[consts::NLMSG_HDR_LEN..len].to_vec();
+
+        Self {
+            header,
+            payload,
+            len,
+        }
+    }
+}
 
 pub struct NetlinkMessages(Vec<NetlinkMessage>);
 
@@ -27,22 +45,6 @@ impl IntoIterator for NetlinkMessages {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
-    }
-}
-
-pub struct NetlinkMessage {
-    pub header: NetlinkHeader,
-    pub data: Vec<u8>,
-    pub len: usize,
-}
-
-impl<'a> From<&'a [u8]> for NetlinkMessage {
-    fn from(buf: &'a [u8]) -> Self {
-        let header: NetlinkHeader = buf.into();
-        let len = align_of(header.len as usize, consts::NLMSG_ALIGN_TO);
-        let data = buf[consts::NLMSG_HDR_LEN..len].to_vec();
-
-        Self { header, data, len }
     }
 }
 
@@ -71,8 +73,4 @@ impl NetlinkHeader {
             ..Default::default()
         }
     }
-}
-
-pub fn align_of(len: usize, align_to: usize) -> usize {
-    (len + align_to - 1) & !(align_to - 1)
 }

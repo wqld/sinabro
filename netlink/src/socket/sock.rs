@@ -114,7 +114,7 @@ impl SockAddrNetlink {
 #[cfg(test)]
 mod tests {
 
-    use crate::message::rt::{deserialize, IfInfoMessage};
+    use crate::message::rt::LinkHeader;
 
     use super::*;
 
@@ -156,15 +156,15 @@ mod tests {
                         break 'done;
                     }
                     _ => {
-                        res.push(m.data);
+                        res.push(m.payload);
                     }
                 }
             }
         }
 
         res.iter().for_each(|r| {
-            let msg = deserialize::<IfInfoMessage>(r);
-            println!("{:?}", msg);
+            // let msg = deserialize::<IfInfoMessage>(r);
+            // println!("{:?}", msg);
         });
     }
 }
