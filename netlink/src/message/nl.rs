@@ -1,11 +1,9 @@
 use std::mem::size_of;
 
-use serde::Deserialize;
+use bincode::deserialize;
+use serde::{Deserialize, Serialize};
 
-use crate::{
-    consts,
-    utils::{align_of, deserialize},
-};
+use crate::{consts, utils::align_of};
 
 pub struct NetlinkMessage {
     pub header: NetlinkHeader,
@@ -14,7 +12,8 @@ pub struct NetlinkMessage {
 
 impl<'a> From<&'a [u8]> for NetlinkMessage {
     fn from(buf: &'a [u8]) -> Self {
-        let header = deserialize::<NetlinkHeader>(buf).unwrap();
+        let header =
+            deserialize::<NetlinkHeader>(buf).expect("Failed to deserialize data to NetlinkHeader");
         let payload = buf[consts::NLMSG_HDR_LEN..header.len as usize].to_vec();
 
         Self { header, payload }
@@ -49,7 +48,7 @@ impl IntoIterator for NetlinkMessages {
 }
 
 #[repr(C)]
-#[derive(Default, Clone, Copy, Deserialize)]
+#[derive(Default, Clone, Copy, Serialize, Deserialize)]
 pub struct NetlinkHeader {
     pub len: u32,
     pub kind: u16,

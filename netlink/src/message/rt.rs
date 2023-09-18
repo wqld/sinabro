@@ -12,13 +12,15 @@ pub trait NetlinkPayload {
 }
 
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, Builder, Serialize, Deserialize)]
 pub struct LinkHeader {
     pub family: u8,
+    #[builder(default)]
     pub _pad: u8,
     pub kind: u16,
     pub index: i32,
     pub flags: u32,
+    #[builder(default)]
     pub change: u32,
 }
 
@@ -154,8 +156,6 @@ impl Deref for Attributes {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils;
-
     use super::*;
 
     #[rustfmt::skip]
@@ -185,7 +185,7 @@ mod tests {
 
     #[test]
     fn test_link_header() {
-        let msg = utils::deserialize::<LinkHeader>(&NETLINK_MSG).unwrap();
+        let msg = bincode::deserialize::<LinkHeader>(&NETLINK_MSG).unwrap();
 
         assert_eq!(772, msg.kind);
         assert_eq!(1, msg.index);

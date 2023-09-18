@@ -114,7 +114,7 @@ impl SockAddrNetlink {
 #[cfg(test)]
 mod tests {
 
-    use crate::{message::rt::LinkHeader, utils::deserialize};
+    use crate::message::rt::LinkHeader;
 
     use super::*;
 
@@ -163,7 +163,7 @@ mod tests {
         }
 
         res.iter().for_each(|r| {
-            let msg = deserialize::<LinkHeader>(r);
+            let msg = bincode::deserialize::<LinkHeader>(r);
             println!("{:?}", msg);
         });
     }
