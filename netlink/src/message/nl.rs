@@ -1,6 +1,11 @@
 use std::mem::size_of;
 
-use crate::{consts, utils::align_of};
+use serde::Deserialize;
+
+use crate::{
+    consts,
+    utils::{align_of, deserialize},
+};
 
 pub struct NetlinkMessage {
     pub header: NetlinkHeader,
@@ -10,7 +15,7 @@ pub struct NetlinkMessage {
 
 impl<'a> From<&'a [u8]> for NetlinkMessage {
     fn from(buf: &'a [u8]) -> Self {
-        let header: NetlinkHeader = buf.into();
+        let header = deserialize::<NetlinkHeader>(buf).unwrap();
         let len = align_of(header.len as usize, consts::NLMSG_ALIGN_TO);
         let payload = buf[consts::NLMSG_HDR_LEN..len].to_vec();
 
@@ -49,19 +54,13 @@ impl IntoIterator for NetlinkMessages {
 }
 
 #[repr(C)]
-#[derive(Default, Clone, Copy)]
+#[derive(Default, Clone, Copy, Deserialize)]
 pub struct NetlinkHeader {
     pub len: u32,
     pub kind: u16,
     pub flags: u16,
     pub seq: u32,
     pub pid: u32,
-}
-
-impl<'a> From<&'a [u8]> for NetlinkHeader {
-    fn from(buf: &'a [u8]) -> Self {
-        unsafe { *(buf.as_ptr() as *const Self) }
-    }
 }
 
 impl NetlinkHeader {

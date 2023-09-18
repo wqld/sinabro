@@ -6,7 +6,7 @@ use std::{
 
 use anyhow::Result;
 
-use crate::{consts, message::ln::NetlinkMessages};
+use crate::{consts, message::nl::NetlinkMessages};
 
 pub struct NetlinkSocket {
     fd: RawFd,
@@ -114,7 +114,7 @@ impl SockAddrNetlink {
 #[cfg(test)]
 mod tests {
 
-    use crate::message::rt::LinkHeader;
+    use crate::{message::rt::LinkHeader, utils::deserialize};
 
     use super::*;
 
@@ -163,8 +163,8 @@ mod tests {
         }
 
         res.iter().for_each(|r| {
-            // let msg = deserialize::<IfInfoMessage>(r);
-            // println!("{:?}", msg);
+            let msg = deserialize::<LinkHeader>(r);
+            println!("{:?}", msg);
         });
     }
 }
