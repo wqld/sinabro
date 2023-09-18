@@ -10,20 +10,14 @@ use crate::{
 pub struct NetlinkMessage {
     pub header: NetlinkHeader,
     pub payload: Vec<u8>,
-    pub len: usize,
 }
 
 impl<'a> From<&'a [u8]> for NetlinkMessage {
     fn from(buf: &'a [u8]) -> Self {
         let header = deserialize::<NetlinkHeader>(buf).unwrap();
-        let len = align_of(header.len as usize, consts::NLMSG_ALIGN_TO);
-        let payload = buf[consts::NLMSG_HDR_LEN..len].to_vec();
+        let payload = buf[consts::NLMSG_HDR_LEN..header.len as usize].to_vec();
 
-        Self {
-            header,
-            payload,
-            len,
-        }
+        Self { header, payload }
     }
 }
 
@@ -36,7 +30,8 @@ impl<'a> From<&'a [u8]> for NetlinkMessages {
 
         while buf.len() >= consts::NLMSG_HDR_LEN {
             let msg: NetlinkMessage = buf.into();
-            buf = &buf[msg.len..];
+            let aligned_len = align_of(msg.header.len as usize, consts::NLMSG_ALIGN_TO);
+            buf = &buf[aligned_len..];
             req.push(msg);
         }
 
