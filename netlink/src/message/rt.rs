@@ -4,7 +4,10 @@ use anyhow::Result;
 use derive_builder::Builder;
 use serde::{Deserialize, Serialize};
 
-use crate::{consts, utils::align_of};
+use crate::{
+    consts::{self, AttributeKind},
+    utils::align_of,
+};
 
 pub trait NetlinkPayload {
     fn size(&self) -> usize;
@@ -12,7 +15,7 @@ pub trait NetlinkPayload {
 }
 
 #[repr(C)]
-#[derive(Debug, Clone, Copy, Default, Builder, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Builder, Serialize, Deserialize)]
 pub struct LinkHeader {
     pub family: u8,
     #[builder(default)]
@@ -87,11 +90,11 @@ pub struct Attribute {
 }
 
 impl Attribute {
-    pub fn new(kind: u16, payload: Vec<u8>) -> Self {
+    pub fn new(kind: AttributeKind, payload: &[u8]) -> Self {
         Self {
             len: (consts::RT_ATTR_SIZE + payload.len()) as u16,
-            kind,
-            payload,
+            kind: kind as u16,
+            payload: payload.to_vec(),
         }
     }
 

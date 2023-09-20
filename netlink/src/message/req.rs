@@ -32,13 +32,17 @@ impl NetlinkRequest {
         self.data
             .get_or_insert_with(|| Vec::with_capacity(data.size()))
             .extend_from_slice(&data.serialize()?);
+
         Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::message::rt::{Attribute, LinkHeaderBuilder};
+    use crate::{
+        consts::AttributeKind,
+        message::rt::{Attribute, LinkHeaderBuilder},
+    };
 
     use super::*;
 
@@ -54,12 +58,9 @@ mod tests {
             .build()
             .unwrap();
 
+        let name_attr = Attribute::new(AttributeKind::Name, b"lo");
+
         req.add_data(&link_header).unwrap();
-
-        // TODO NameAttribute
-        let name_attr = Attribute::new(libc::IFLA_IFNAME, "lo".as_bytes().to_vec());
-
-        // TODO varargs?
         req.add_data(&name_attr).unwrap();
 
         let buf = req.serialize().unwrap();

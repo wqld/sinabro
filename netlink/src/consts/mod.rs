@@ -14,3 +14,7 @@ pub const ADDR_MSG_SIZE: usize = 0x8;
 pub const ROUTE_MSG_SIZE: usize = 0xC;
 
 pub const RTA_ALIGNTO: usize = 0x4;
+
+pub enum AttributeKind {
+    Name = 3,
+}
