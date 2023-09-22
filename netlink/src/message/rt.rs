@@ -20,8 +20,11 @@ pub struct LinkHeader {
     pub family: u8,
     #[builder(default)]
     pub _pad: u8,
+    #[builder(default)]
     pub kind: u16,
+    #[builder(default)]
     pub index: i32,
+    #[builder(default)]
     pub flags: u32,
     #[builder(default)]
     pub change: u32,
