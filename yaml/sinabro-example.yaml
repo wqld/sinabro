@@ -1,6 +1,0 @@
-apiVersion: sinabro.io/v1alpha1
-kind: Sinabro
-metadata:
-  name: test
-spec:
-  test: false
