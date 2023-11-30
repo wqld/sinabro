@@ -3,12 +3,17 @@
 // whole pod cidr range ? -> cluster-info dump cluster-cidr
 // bridge ip -> pod cidr + 1
 
+use std::env;
+
 use k8s_openapi::api::core::v1::Node;
 use kube::{Api, Client};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     println!("Hello, world!");
+
+    let host_ip = env::var("HOST_IP")?;
+    println!("host ip: {}", host_ip);
 
     let client = Client::try_default().await?;
 
@@ -27,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
         println!("node ip: {}", node_ip);
         println!("node pod cidr: {}", node_pod_cidr);
         // get cluster cidr
-        let cluster_cidr = node_pod_cidr.split(".").collect::<Vec<&str>>()[0..3].join(".");
+        let cluster_cidr = node_pod_cidr.split('.').collect::<Vec<&str>>()[0..3].join(".");
         println!("cluster cidr: {}", cluster_cidr);
         // get bridge ip
         let bridge_ip = format!("{}.1", cluster_cidr);

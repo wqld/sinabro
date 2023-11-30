@@ -1,0 +1,68 @@
+---
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sinabro
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - nodes
+    verbs:
+      - list
+      - watch
+      - patch
+  - apiGroups:
+     - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+---
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: sinabro
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: sinabro
+subjects:
+- kind: ServiceAccount
+  name: sinabro
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: sinabro
+  namespace: kube-system
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: agent
+  namespace: kube-system
+spec:
+  hostNetwork: true
+  tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  serviceAccountName: sinabro
+  containers:
+  - name: agent
+    image: 21kyu/sinabro:0.0.1
+    ports:
+    - containerPort: 8080
+    env:
+    - name: HOST_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.hostIP
+    resources:
+      requests:
+        cpu: 100m
+        memory: 100Mi
+      limits:
+        cpu: 100m
+        memory: 100Mi
