@@ -13,7 +13,7 @@ rules:
       - watch
       - patch
   - apiGroups:
-     - ""
+      - ""
     resources:
       - configmaps
     verbs:
@@ -28,9 +28,9 @@ roleRef:
   kind: ClusterRole
   name: sinabro
 subjects:
-- kind: ServiceAccount
-  name: sinabro
-  namespace: kube-system
+  - kind: ServiceAccount
+    name: sinabro
+    namespace: kube-system
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -38,31 +38,40 @@ metadata:
   name: sinabro
   namespace: kube-system
 ---
-apiVersion: v1
-kind: Pod
+apiVersion: apps/v1
+kind: DaemonSet
 metadata:
   name: agent
   namespace: kube-system
 spec:
-  hostNetwork: true
-  tolerations:
-  - operator: Exists
-    effect: NoSchedule
-  serviceAccountName: sinabro
-  containers:
-  - name: agent
-    image: 21kyu/sinabro:0.0.1
-    ports:
-    - containerPort: 8080
-    env:
-    - name: HOST_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.hostIP
-    resources:
-      requests:
-        cpu: 100m
-        memory: 100Mi
-      limits:
-        cpu: 100m
-        memory: 100Mi
+  selector:
+    matchLabels:
+      name: agent
+  template:
+    metadata:
+      labels:
+        name: agent
+    spec:
+      hostNetwork: true
+      tolerations:
+        - operator: Exists
+          effect: NoSchedule
+      serviceAccountName: sinabro
+      containers:
+        - name: agent
+          image: 21kyu/sinabro:0.0.1
+          ports:
+            - containerPort: 8080
+          env:
+            - name: HOST_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+          resources:
+            requests:
+              cpu: 100m
+              memory: 100Mi
+            limits:
+              cpu: 100m
+              memory: 100Mi
+
