@@ -42,6 +42,27 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+struct NodeRoute {
+    name: String,
+    ip: String,
+    pod_cidr: String,
+}
+
+impl From<Node> for NodeRoute {
+    fn from(node: Node) -> Self {
+        let name = node.metadata.name.unwrap_or_default();
+        let ip = node
+            .status
+            .and_then(|status| status.addresses)
+            .and_then(|addresses| addresses.get(0).cloned())
+            .map(|address| address.address)
+            .unwrap_or_default();
+        let pod_cidr = node.spec.and_then(|spec| spec.pod_cidr).unwrap_or_default();
+
+        Self { name, ip, pod_cidr }
+    }
+}
+
 struct Context {
     client: Client,
 }
