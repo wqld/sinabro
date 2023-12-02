@@ -17,23 +17,8 @@ async fn main() -> anyhow::Result<()> {
 
     let context = Context::new().await?;
 
-    let client = Client::try_default().await?;
-
-    let node_api: Api<Node> = Api::all(client.clone());
-
-    // get all nodes
-    let nodes = node_api.list(&Default::default()).await?;
-
-    // get node's pod cidr & node ip from nodes
-    for node in nodes.items {
-        let node = node.clone();
-        let node_name = node.metadata.name.unwrap();
-        let node_ip = &node.status.unwrap().addresses.unwrap()[0].address;
-        let node_pod_cidr = node.spec.unwrap().pod_cidr.unwrap();
-        println!("node name: {}", node_name);
-        println!("node ip: {}", node_ip);
-        println!("node pod cidr: {}", node_pod_cidr);
-    }
+    let node_routes = context.get_node_routes().await?;
+    println!("node routes: {:#?}", node_routes);
 
     // get cluster cidr
     let cluster_cidr = context.get_cluster_cidr().await?;
@@ -42,6 +27,7 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
+#[derive(Debug)]
 struct NodeRoute {
     name: String,
     ip: String,
@@ -74,9 +60,7 @@ impl Context {
     }
 
     async fn get_cluster_cidr(&self) -> anyhow::Result<String> {
-        let config_map_api: Api<ConfigMap> = Api::namespaced(self.client.clone(), "kube-system");
-
-        config_map_api
+        Api::<ConfigMap>::namespaced(self.client.clone(), "kube-system")
             .get("kube-proxy")
             .await?
             .data
@@ -84,5 +68,15 @@ impl Context {
             .and_then(|conf| serde_yaml::from_str::<serde_yaml::Value>(&conf).ok())
             .and_then(|yaml| yaml["clusterCIDR"].as_str().map(ToOwned::to_owned))
             .ok_or_else(|| anyhow::anyhow!("failed to get cluster cidr"))
+    }
+
+    async fn get_node_routes(&self) -> anyhow::Result<Vec<NodeRoute>> {
+        Ok(Api::<Node>::all(self.client.clone())
+            .list(&Default::default())
+            .await?
+            .items
+            .into_iter()
+            .map(NodeRoute::from)
+            .collect())
     }
 }
