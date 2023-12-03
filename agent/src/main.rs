@@ -6,9 +6,17 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
 };
 
+use anyhow::Error;
 use ipnet::IpNet;
 
 use context::Context;
+
+macro_rules! run_command {
+    ($command:expr $(, $args:expr)*) => {
+        std::process::Command::new($command).args([$($args),*]).output()
+            .expect("failed to run command")
+    };
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -46,5 +54,10 @@ async fn main() -> anyhow::Result<()> {
     let cluster_cidr = context.get_cluster_cidr().await?;
     println!("cluster cidr: {}", cluster_cidr);
 
-    Ok(())
+    let out = run_command!("apt", "update");
+
+    match out.status.success() {
+        true => Ok(()),
+        _ => Err(Error::msg(String::from_utf8(out.stderr).unwrap())),
+    }
 }
