@@ -3,8 +3,9 @@
 // whole pod cidr range ? -> cluster-info dump cluster-cidr
 // bridge ip -> pod cidr + 1
 
-use std::env;
+use std::{env, net::Ipv4Addr};
 
+use ipnet::{IpNet, Ipv4Net};
 use k8s_openapi::api::core::v1::{ConfigMap, Node};
 use kube::{Api, Client};
 
@@ -12,15 +13,27 @@ use kube::{Api, Client};
 async fn main() -> anyhow::Result<()> {
     println!("Hello, world!");
 
-    // let host_ip = env::var("HOST_IP")?;
-    // println!("host ip: {}", host_ip);
+    let host_ip = env::var("HOST_IP").unwrap_or("172.18.0.2".to_owned());
+    println!("host ip: {}", host_ip);
 
     let context = Context::new().await?;
 
     let node_routes = context.get_node_routes().await?;
-    println!("node routes: {:#?}", node_routes);
+    println!("node routes: {:?}", node_routes);
 
-    // get cluster cidr
+    let host_route = node_routes
+        .iter()
+        .find(|node_route| node_route.ip == host_ip)
+        .ok_or_else(|| anyhow::anyhow!("failed to find node route"))?;
+    println!("host route: {:?}", host_route);
+
+    let bridge_ip = host_route
+        .pod_cidr
+        .parse::<Ipv4Net>()
+        .map(|ipnet| u32::from(ipnet.network()) + 1)
+        .map(Ipv4Addr::from);
+    println!("bridge ip: {:?}", bridge_ip?);
+
     let cluster_cidr = context.get_cluster_cidr().await?;
     println!("cluster cidr: {}", cluster_cidr);
 
