@@ -3,9 +3,12 @@
 // whole pod cidr range ? -> cluster-info dump cluster-cidr
 // bridge ip -> pod cidr + 1
 
-use std::{env, net::Ipv4Addr};
+use std::{
+    env,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
+};
 
-use ipnet::{IpNet, Ipv4Net};
+use ipnet::{IpAdd, IpNet, Ipv4Net};
 use k8s_openapi::api::core::v1::{ConfigMap, Node};
 use kube::{Api, Client};
 
@@ -29,9 +32,17 @@ async fn main() -> anyhow::Result<()> {
 
     let bridge_ip = host_route
         .pod_cidr
-        .parse::<Ipv4Net>()
-        .map(|ipnet| u32::from(ipnet.network()) + 1)
-        .map(Ipv4Addr::from);
+        .parse::<IpNet>()
+        .map(|ipnet| match ipnet {
+            IpNet::V4(v4) => {
+                let net = u32::from(v4.network()) + 1;
+                IpAddr::V4(Ipv4Addr::from(net))
+            }
+            IpNet::V6(v6) => {
+                let net = u128::from(v6.network()) + 1;
+                IpAddr::V6(Ipv6Addr::from(net))
+            }
+        });
     println!("bridge ip: {:?}", bridge_ip?);
 
     let cluster_cidr = context.get_cluster_cidr().await?;
@@ -42,14 +53,12 @@ async fn main() -> anyhow::Result<()> {
 
 #[derive(Debug)]
 struct NodeRoute {
-    name: String,
     ip: String,
     pod_cidr: String,
 }
 
 impl From<Node> for NodeRoute {
     fn from(node: Node) -> Self {
-        let name = node.metadata.name.unwrap_or_default();
         let ip = node
             .status
             .and_then(|status| status.addresses)
@@ -58,7 +67,7 @@ impl From<Node> for NodeRoute {
             .unwrap_or_default();
         let pod_cidr = node.spec.and_then(|spec| spec.pod_cidr).unwrap_or_default();
 
-        Self { name, ip, pod_cidr }
+        Self { ip, pod_cidr }
     }
 }
 
