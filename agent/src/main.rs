@@ -8,16 +8,9 @@ use std::{
 
 use anyhow::Error;
 use ipnet::IpNet;
-
-use context::Context;
 use tracing::{debug, info};
 
-macro_rules! run_command {
-    ($command:expr $(, $args:expr)*) => {
-        std::process::Command::new($command).args([$($args),*]).output()
-            .expect("failed to run command")
-    };
-}
+use crate::context::Context;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -52,13 +45,21 @@ async fn main() -> anyhow::Result<()> {
             }
         })?
         .to_string();
-
     debug!("bridge ip: {}", bridge_ip);
 
     let cluster_cidr = context.get_cluster_cidr().await?;
     debug!("cluster cidr: {}", cluster_cidr);
 
-    let out = run_command!("apt", "update");
+    run_command("apt", &["update"])?;
+
+    Ok(())
+}
+
+fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
+    let out = std::process::Command::new(cmd)
+        .args(args)
+        .output()
+        .expect("failed to run command");
 
     match out.status.success() {
         true => Ok(()),
