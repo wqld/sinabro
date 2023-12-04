@@ -50,7 +50,84 @@ async fn main() -> anyhow::Result<()> {
     let cluster_cidr = context.get_cluster_cidr().await?;
     debug!("cluster cidr: {}", cluster_cidr);
 
+    let bridge_name = "cni0";
+
     run_command("apt", &["update"])?;
+    run_command("apt", &["install", "-y", "nmap"])?;
+
+    // create and configure the bridge with the cni0 name
+    run_command("ip", &["link", "add", bridge_name, "type", "bridge"])?;
+    run_command("ip", &["link", "set", bridge_name, "up"])?;
+    run_command(
+        "ip",
+        &["addr", "add", bridge_ip.as_str(), "dev", bridge_name],
+    )?;
+
+    // apply additional forwarding rules that will allow
+    // to freely forward traffic inside the whole pod CIDR range
+    run_command(
+        "iptables",
+        &[
+            "-t",
+            "filter",
+            "-A",
+            "FORWARD",
+            "-s",
+            cluster_cidr.as_str(),
+            "-j",
+            "ACCEPT",
+        ],
+    )?;
+    run_command(
+        "iptables",
+        &[
+            "-t",
+            "filter",
+            "-A",
+            "FORWARD",
+            "-d",
+            cluster_cidr.as_str(),
+            "-j",
+            "ACCEPT",
+        ],
+    )?;
+
+    // setup a network address translation (NAT)
+    run_command(
+        "iptables",
+        &[
+            "-t",
+            "nat",
+            "-A",
+            "POSTROUTING",
+            "-s",
+            host_route.pod_cidr.as_str(),
+            "!",
+            "-o",
+            bridge_name,
+            "-j",
+            "MASQUERADE",
+        ],
+    )?;
+
+    // setup additional route rule
+    node_routes
+        .iter()
+        .filter(|node_route| node_route.ip != host_ip)
+        .try_for_each(|node_route| {
+            run_command(
+                "ip",
+                &[
+                    "route",
+                    "add",
+                    node_route.pod_cidr.as_str(),
+                    "via",
+                    node_route.ip.as_str(),
+                    "dev",
+                    "eth0", // TODO: need to retrieve the name of the interface on the host
+                ],
+            )
+        })?;
 
     Ok(())
 }
