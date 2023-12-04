@@ -10,6 +10,7 @@ use anyhow::Error;
 use ipnet::IpNet;
 
 use context::Context;
+use tracing::{debug, info};
 
 macro_rules! run_command {
     ($command:expr $(, $args:expr)*) => {
@@ -20,21 +21,22 @@ macro_rules! run_command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    println!("Hello, world!");
-
-    let host_ip = env::var("HOST_IP").unwrap_or("172.18.0.2".to_owned());
-    println!("host ip: {}", host_ip);
+    tracing_subscriber::fmt::init();
+    info!("Hello, world!");
 
     let context = Context::new().await?;
 
+    let host_ip = env::var("HOST_IP").unwrap_or("172.18.0.2".to_owned());
+    debug!("host ip: {}", host_ip);
+
     let node_routes = context.get_node_routes().await?;
-    println!("node routes: {:?}", node_routes);
+    debug!("node routes: {:?}", node_routes);
 
     let host_route = node_routes
         .iter()
         .find(|node_route| node_route.ip == host_ip)
         .ok_or_else(|| anyhow::anyhow!("failed to find node route"))?;
-    println!("host route: {:?}", host_route);
+    debug!("host route: {:?}", host_route);
 
     let bridge_ip = host_route
         .pod_cidr
@@ -48,11 +50,13 @@ async fn main() -> anyhow::Result<()> {
                 let net = u128::from(v6.network()) + 1;
                 IpAddr::V6(Ipv6Addr::from(net))
             }
-        });
-    println!("bridge ip: {:?}", bridge_ip?);
+        })?
+        .to_string();
+
+    debug!("bridge ip: {}", bridge_ip);
 
     let cluster_cidr = context.get_cluster_cidr().await?;
-    println!("cluster cidr: {}", cluster_cidr);
+    debug!("cluster cidr: {}", cluster_cidr);
 
     let out = run_command!("apt", "update");
 
