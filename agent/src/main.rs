@@ -1,3 +1,4 @@
+pub mod cni_config;
 pub mod context;
 pub mod node_route;
 
@@ -9,7 +10,7 @@ use std::{
 use ipnet::IpNet;
 use tracing::{debug, error, info};
 
-use crate::context::Context;
+use crate::{cni_config::CniConfig, context::Context};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -129,23 +130,7 @@ async fn main() -> anyhow::Result<()> {
             )
         })?;
 
-    // create a cni config file
-    let cni_config = format!(
-        r#"
-{{
-    "cniVersion": "0.3.1",
-    "name": "sinabro",
-    "type": "sinabro-cni",
-    "network": "{}",
-    "subnet": "{}"
-}}
-    "#,
-        cluster_cidr, host_route.pod_cidr
-    );
-    debug!("cni config: {}", cni_config);
-
-    let cni_config_path = "/etc/cni/net.d/10-sinabro.conf";
-    std::fs::write(cni_config_path, cni_config)?;
+    CniConfig::new(&cluster_cidr, &host_route.pod_cidr).write("/etc/cni/net.d/10-sinabro.conf")?;
 
     // wait forever
     loop {
