@@ -1,4 +1,10 @@
-FROM rust:1.74.0-slim
-COPY ./target/release/sinabro /app/
+# cross build --target x86_64-unknown-linux-musl --release
+FROM alpine:3.18
+
+COPY --chown=root:root /target/x86_64-unknown-linux-musl/release/sinabro /app/
+COPY --chown=root:root /tests/bin/sinabro-cni /sinabro-cni
+
+RUN apk update && apk add nmap iproute2 iptables
+
 EXPOSE 8080
-ENTRYPOINT ["/app/sinabro"]
+CMD ["/app/sinabro"]

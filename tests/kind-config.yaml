@@ -2,17 +2,7 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
   - role: control-plane
-    extraMounts:
-      - hostPath: ./bin/comet-cni
-        containerPath: /comet-cni
-      - hostPath: ./conf/08-comet-cni-master.conf
-        containerPath: /etc/cni/net.d/08-comet-cni.conf
   - role: worker
-    extraMounts:
-      - hostPath: ./bin/comet-cni
-        containerPath: /comet-cni
-      - hostPath: ./conf/08-comet-cni-worker.conf
-        containerPath: /etc/cni/net.d/08-comet-cni.conf
 networking:
   disableDefaultCNI: true
   podSubnet: 10.244.0.0/16

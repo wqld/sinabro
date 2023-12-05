@@ -6,9 +6,8 @@ use std::{
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
 };
 
-use anyhow::Error;
 use ipnet::IpNet;
-use tracing::{debug, info};
+use tracing::{debug, error, info};
 
 use crate::context::Context;
 
@@ -43,17 +42,18 @@ async fn main() -> anyhow::Result<()> {
                 let net = u128::from(v6.network()) + 1;
                 IpAddr::V6(Ipv6Addr::from(net))
             }
-        })?
-        .to_string();
+        })?;
+    let bridge_ip = IpNet::new(
+        bridge_ip,
+        host_route.pod_cidr.parse::<IpNet>()?.prefix_len(),
+    )?;
+    let bridge_ip = format!("{:?}", bridge_ip);
     debug!("bridge ip: {}", bridge_ip);
 
     let cluster_cidr = context.get_cluster_cidr().await?;
     debug!("cluster cidr: {}", cluster_cidr);
 
     let bridge_name = "cni0";
-
-    run_command("apt", &["update"])?;
-    run_command("apt", &["install", "-y", "nmap"])?;
 
     // create and configure the bridge with the cni0 name
     run_command("ip", &["link", "add", bridge_name, "type", "bridge"])?;
@@ -129,17 +129,44 @@ async fn main() -> anyhow::Result<()> {
             )
         })?;
 
+    // create a cni config file
+    let cni_config = format!(
+        r#"
+{{
+    "cniVersion": "0.3.1",
+    "name": "sinabro",
+    "type": "sinabro-cni",
+    "network": "{}",
+    "subnet": "{}"
+}}
+    "#,
+        cluster_cidr, host_route.pod_cidr
+    );
+    debug!("cni config: {}", cni_config);
+
+    let cni_config_path = "/etc/cni/net.d/10-sinabro.conf";
+    std::fs::write(cni_config_path, cni_config)?;
+
+    // wait forever
+    loop {
+        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+    }
+
     Ok(())
 }
 
 fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
+    info!("running command: {} {}", cmd, args.join(" "));
+
     let out = std::process::Command::new(cmd)
         .args(args)
         .output()
         .expect("failed to run command");
 
     match out.status.success() {
-        true => Ok(()),
-        _ => Err(Error::msg(String::from_utf8(out.stderr).unwrap())),
+        true => {}
+        _ => error!("{}", String::from_utf8_lossy(&out.stderr)),
     }
+
+    Ok(())
 }

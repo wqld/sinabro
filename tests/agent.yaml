@@ -54,19 +54,31 @@ spec:
     spec:
       hostNetwork: true
       tolerations:
-        - operator: Exists
-          effect: NoSchedule
+      - operator: Exists
+        effect: NoSchedule
       serviceAccountName: sinabro
+      initContainers:
+      - name: install-cni-bin
+        image: 21kyu/sinabro:0.0.1
+        imagePullPolicy: Always
+        command: ['sh', '-c', 'chmod +x /sinabro-cni && cp /sinabro-cni /cni/sinabro-cni']
+        volumeMounts:
+        - name: cni-bin
+          mountPath: /cni
       containers:
         - name: agent
-          image: 21kyu/sinabro:0.0.1
+          image: 21kyu/sinabro:0.0.1  
+          imagePullPolicy: Always
           ports:
-            - containerPort: 8080
+          - containerPort: 8080
           env:
-            - name: HOST_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.hostIP
+          - name: HOST_IP
+            valueFrom:
+              fieldRef:
+                fieldPath: status.hostIP
+          volumeMounts:
+          - name: cni-cfg
+            mountPath: /etc/cni/net.d
           resources:
             requests:
               cpu: 100m
@@ -74,4 +86,16 @@ spec:
             limits:
               cpu: 100m
               memory: 100Mi
-
+          securityContext:
+            privileged: false
+            capabilities:
+              add: ["NET_RAW", "NET_ADMIN"]
+      volumes:
+      - name: cni-bin
+        hostPath:
+          path: /opt/cni/bin
+          type: DirectoryOrCreate
+      - name: cni-cfg
+        hostPath:
+          path: /etc/cni/net.d
+          type: DirectoryOrCreate
