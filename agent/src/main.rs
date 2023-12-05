@@ -64,53 +64,6 @@ async fn main() -> anyhow::Result<()> {
         &["addr", "add", bridge_ip.as_str(), "dev", bridge_name],
     )?;
 
-    // apply additional forwarding rules that will allow
-    // to freely forward traffic inside the whole pod CIDR range
-    run_command(
-        "iptables",
-        &[
-            "-t",
-            "filter",
-            "-A",
-            "FORWARD",
-            "-s",
-            cluster_cidr.as_str(),
-            "-j",
-            "ACCEPT",
-        ],
-    )?;
-    run_command(
-        "iptables",
-        &[
-            "-t",
-            "filter",
-            "-A",
-            "FORWARD",
-            "-d",
-            cluster_cidr.as_str(),
-            "-j",
-            "ACCEPT",
-        ],
-    )?;
-
-    // setup a network address translation (NAT)
-    run_command(
-        "iptables",
-        &[
-            "-t",
-            "nat",
-            "-A",
-            "POSTROUTING",
-            "-s",
-            host_route.pod_cidr.as_str(),
-            "!",
-            "-o",
-            bridge_name,
-            "-j",
-            "MASQUERADE",
-        ],
-    )?;
-
     // setup additional route rule
     node_routes
         .iter()

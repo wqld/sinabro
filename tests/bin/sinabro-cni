@@ -64,7 +64,7 @@ ADD)
 	# move the peer0 interface to the container network namespace
 	ip link set peer0 netns $CNI_CONTAINERID
 	# rename the interface to eth0 and set the interface to up
-  ip netns exec $CNI_CONTAINERID ip link set peer0 name $CNI_IFNAME
+  	ip netns exec $CNI_CONTAINERID ip link set peer0 name $CNI_IFNAME
 	ip netns exec $CNI_CONTAINERID ip link set $CNI_IFNAME up
 	# assign the previously allocated container IP to the interface
 	ip netns exec $CNI_CONTAINERID ip addr add $container_ip/$subnet_mask_size dev $CNI_IFNAME
