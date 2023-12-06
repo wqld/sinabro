@@ -1,6 +1,6 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct CniConfig<'a> {
     #[serde(rename = "cniVersion")]
     pub cni_version: &'a str,
@@ -37,6 +37,12 @@ impl CniConfig<'_> {
     }
 }
 
+impl<'a> From<&'a str> for CniConfig<'a> {
+    fn from(json: &'a str) -> Self {
+        serde_json::from_str(json).unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -55,5 +61,17 @@ mod tests {
         std::fs::remove_file("/tmp/10-sinabro.conf").unwrap();
 
         assert_eq!(expected, json);
+    }
+
+    #[test]
+    fn cni_config_from_json() {
+        let json = r#"{"cniVersion":"0.3.1","name":"sinabro","type":"sinabro-cni","network":"10.244.0.0/16","subnet":"10.244.0.0/24"}"#;
+        let cni_config = CniConfig::from(json);
+
+        assert_eq!("0.3.1", cni_config.cni_version);
+        assert_eq!("sinabro", cni_config.name);
+        assert_eq!("sinabro-cni", cni_config.cni_type);
+        assert_eq!("10.244.0.0/16", cni_config.network);
+        assert_eq!("10.244.0.0/24", cni_config.subnet);
     }
 }
