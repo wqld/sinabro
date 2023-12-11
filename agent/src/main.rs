@@ -1,6 +1,7 @@
-pub mod cni_config;
-pub mod context;
-pub mod node_route;
+mod cni_config;
+mod context;
+mod node_route;
+mod server;
 
 use std::{
     env,
@@ -10,6 +11,7 @@ use std::{
 use ipnet::IpNet;
 use tracing::{debug, error, info};
 
+use crate::server::api_server;
 use crate::{cni_config::CniConfig, context::Context};
 
 #[tokio::main]
@@ -85,12 +87,7 @@ async fn main() -> anyhow::Result<()> {
 
     CniConfig::new(&cluster_cidr, &host_route.pod_cidr).write("/etc/cni/net.d/10-sinabro.conf")?;
 
-    // wait forever
-    loop {
-        tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
-    }
-
-    Ok(())
+    api_server::start()
 }
 
 fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
