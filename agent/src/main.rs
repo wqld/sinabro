@@ -6,6 +6,7 @@ mod server;
 use std::{
     env,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
+    thread,
 };
 
 use ipnet::IpNet;
@@ -76,18 +77,41 @@ async fn main() -> anyhow::Result<()> {
                 &[
                     "route",
                     "add",
-                    node_route.pod_cidr.as_str(),
+                    &node_route.pod_cidr,
                     "via",
-                    node_route.ip.as_str(),
+                    &node_route.ip,
                     "dev",
                     "eth0", // TODO: need to retrieve the name of the interface on the host
                 ],
             )
         })?;
 
+    run_command(
+        "iptables",
+        &[
+            "-t",
+            "nat",
+            "-A",
+            "POSTROUTING",
+            "-s",
+            &host_route.pod_cidr,
+            "!",
+            "-o",
+            bridge_name,
+            "-j",
+            "MASQUERADE",
+        ],
+    )?;
+
     CniConfig::new(&cluster_cidr, &host_route.pod_cidr).write("/etc/cni/net.d/10-sinabro.conf")?;
 
-    api_server::start()
+    let pod_cidr = host_route.pod_cidr.clone();
+
+    let _ = thread::spawn(move || api_server::start(&pod_cidr))
+        .join()
+        .unwrap();
+
+    Ok(())
 }
 
 fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {

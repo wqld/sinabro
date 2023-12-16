@@ -2,24 +2,12 @@ pub mod add_result;
 mod interface;
 mod ip;
 
-use std::{collections::BTreeSet, env, fs, io, os::unix, sync::Mutex};
+use std::{env, fs, io, os::unix};
 
 use ipnet::IpNet;
-use once_cell::sync::{Lazy, OnceCell};
 use rand::Rng;
 use sinabro::cni_config::CniConfig;
-use tracing::{debug, error, info, warn};
-
-static SUBNET: OnceCell<IpNet> = OnceCell::new();
-static BRIDGE_IP: OnceCell<String> = OnceCell::new();
-static IP_STORE: Lazy<Mutex<BTreeSet<String>>> = Lazy::new(|| match SUBNET.get() {
-    Some(subnet) => subnet
-        .hosts()
-        .map(|ip| ip.to_string())
-        .collect::<BTreeSet<String>>()
-        .into(),
-    None => BTreeSet::new().into(),
-});
+use tracing::{debug, error, info};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -35,27 +23,20 @@ async fn main() -> anyhow::Result<()> {
 
     let cni_config = CniConfig::from(stdin.as_str());
 
-    SUBNET
-        .set(cni_config.subnet.parse::<IpNet>()?)
-        .map_or_else(|_| warn!("setup subnet failed"), |_| {});
-
-    BRIDGE_IP
-        .set(IP_STORE.lock().unwrap().pop_first().unwrap())
-        .map_or_else(|_| warn!("setup bridge ip failed"), |_| {});
-
     match command.as_str() {
         "ADD" => add(cni_config.subnet),
         "DEL" => todo!(),
         "VERSION" => todo!(),
         _ => todo!(),
     }
+    .await
 }
 
-fn add(subnet: &str) -> anyhow::Result<()> {
+async fn add(subnet: &str) -> anyhow::Result<()> {
     let netns = env::var("CNI_NETNS")?;
     let container_id = env::var("CNI_CONTAINERID")?;
     let cni_if_name = env::var("CNI_IFNAME")?;
-    let container_ip = IP_STORE.lock().unwrap().pop_first().unwrap();
+    let container_ip = request_container_ip().await?;
     let subnet_mask_size = subnet.split('/').last().unwrap();
     let container_addr = format!("{}/{}", container_ip, subnet_mask_size);
     debug!("container ip: {:?}", container_ip);
@@ -125,6 +106,13 @@ fn add(subnet: &str) -> anyhow::Result<()> {
         ],
     )?;
 
+    let subnet = subnet.parse::<IpNet>()?;
+    let bridge_ip = subnet
+        .hosts()
+        .next()
+        .map(|ip| ip.to_string())
+        .ok_or_else(|| anyhow::anyhow!("failed to get bridge ip"))?;
+
     run_command(
         "ip",
         &[
@@ -136,7 +124,7 @@ fn add(subnet: &str) -> anyhow::Result<()> {
             "add",
             "default",
             "via",
-            &BRIDGE_IP.get().unwrap(),
+            &bridge_ip,
             "dev",
             &cni_if_name,
         ],
@@ -144,9 +132,14 @@ fn add(subnet: &str) -> anyhow::Result<()> {
 
     let mac_addr = get_mac_addr(&container_id)?;
 
-    print_result(&mac_addr, &netns, &container_addr, BRIDGE_IP.get().unwrap());
+    print_result(&mac_addr, &netns, &container_addr, &bridge_ip);
 
     Ok(())
+}
+
+async fn request_container_ip() -> anyhow::Result<String> {
+    let res = reqwest::get("http://localhost:3000/ipam/ip").await?;
+    Ok(res.text().await?)
 }
 
 fn generate_unique_veth() -> String {
