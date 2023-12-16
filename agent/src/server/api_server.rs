@@ -1,6 +1,11 @@
 use std::{collections::BTreeSet, sync::Mutex};
 
-use axum::{response::IntoResponse, routing::get, Router};
+use axum::{
+    extract::Path,
+    response::IntoResponse,
+    routing::{get, put},
+    Router,
+};
 use ipnet::IpNet;
 use once_cell::sync::{Lazy, OnceCell};
 use tracing::warn;
@@ -24,7 +29,8 @@ pub async fn start(pod_cidr: &str) -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/", get(root))
-        .route("/ipam/ip", get(pop_first));
+        .route("/ipam/ip", get(pop_first))
+        .route("/ipam/ip/:ip", put(insert));
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await?;
     axum::serve(listener, app).await?;
@@ -38,4 +44,8 @@ async fn root() -> &'static str {
 
 async fn pop_first() -> impl IntoResponse {
     IP_STORE.lock().unwrap().pop_first().unwrap_or_default()
+}
+
+async fn insert(Path(ip): Path<String>) {
+    IP_STORE.lock().unwrap().insert(ip);
 }
