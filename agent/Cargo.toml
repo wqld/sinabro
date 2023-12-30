@@ -7,7 +7,10 @@ license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
+trace = { path = "../trace" }
+
 anyhow = "1.0"
+axum = "0.7.2"
 ipnet = "2.9.0"
 kube = { version = "0.87.1", features = ["runtime", "derive"] }
 k8s-openapi = { version = "0.20.0", features = ["latest"] }
@@ -17,5 +20,3 @@ serde_yaml = "0.9"
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
-tracing-subscriber = "0.3"
-axum = "0.7.2"

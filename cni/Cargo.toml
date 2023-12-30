@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 sinabro = { version = "0.0.1", path = "../agent" }
+trace = { path = "../trace" }
 
 anyhow = "1.0"
 ipnet = "2.9.0"
@@ -18,5 +19,3 @@ serde = "1.0"
 serde_json = "1.0"
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
-tracing-appender = "0.2"
-tracing-subscriber = "0.3"

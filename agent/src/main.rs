@@ -10,16 +10,14 @@ use std::{
 };
 
 use ipnet::IpNet;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, Level};
 
 use crate::server::api_server;
 use crate::{cni_config::CniConfig, context::Context};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::DEBUG)
-        .init();
+    trace::setup_tracing_to_stdout(Level::DEBUG);
     info!("Hello, world!");
 
     let context = Context::new().await?;

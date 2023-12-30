@@ -7,16 +7,11 @@ use std::{env, fs, io, os::unix};
 use ipnet::IpNet;
 use rand::Rng;
 use sinabro::cni_config::CniConfig;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, Level};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let file_appender = tracing_appender::rolling::hourly("/var/log", "sinabro-cni.log");
-    let (non_blocking, _guard) = tracing_appender::non_blocking(file_appender);
-    tracing_subscriber::fmt()
-        .with_writer(non_blocking)
-        .with_max_level(tracing::Level::DEBUG)
-        .init();
+    let _guard = trace::setup_tracing_to_file("/var/log", "sinabro-cni.log", Level::DEBUG)?;
 
     let command = env::var("CNI_COMMAND")?;
     debug!("command: {command}");
