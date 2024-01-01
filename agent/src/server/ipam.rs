@@ -96,7 +96,6 @@ mod tests {
     fn test_ipam() {
         let tmp_dir = tempfile::tempdir().unwrap();
         let store_path = tmp_dir.path().join("ip_store");
-        println!("store_path: {:?}", store_path);
         let ipam = Ipam::new("10.244.0.0/24", store_path.to_str().unwrap());
 
         assert!(!std::path::Path::new(store_path.to_str().unwrap()).exists());

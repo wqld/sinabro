@@ -6,10 +6,11 @@ mod server;
 use std::{
     env,
     net::{IpAddr, Ipv4Addr, Ipv6Addr},
-    thread,
+    sync::Arc,
 };
 
 use ipnet::IpNet;
+use tokio::sync::Notify;
 use tracing::{debug, error, info, Level};
 
 use crate::server::api_server;
@@ -106,9 +107,11 @@ async fn main() -> anyhow::Result<()> {
     CniConfig::new(&cluster_cidr, &host_route.pod_cidr).write("/etc/cni/net.d/10-sinabro.conf")?;
 
     let pod_cidr = host_route.pod_cidr.clone();
+    let store_path = "/var/lib/sinabro/ip_store"; // TODO: make this configurable
+    let shutdown = Arc::new(Notify::new());
 
-    let _ = thread::spawn(move || api_server::start(&pod_cidr))
-        .join()
+    api_server::start(&pod_cidr, store_path, shutdown)
+        .await
         .unwrap();
 
     Ok(())
