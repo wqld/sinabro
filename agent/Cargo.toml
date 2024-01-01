@@ -7,7 +7,8 @@ license = "Apache-2.0"
 edition = "2021"
 
 [dependencies]
-trace = { path = "../trace" }
+sinabro-cni = { path = "../cni" }
+sinabro-trace = { path = "../trace" }
 
 anyhow = "1.0"
 axum = "0.7.2"

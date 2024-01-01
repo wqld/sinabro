@@ -1,4 +1,3 @@
-mod cni_config;
 mod context;
 mod node_route;
 mod server;
@@ -13,12 +12,12 @@ use ipnet::IpNet;
 use tokio::sync::Notify;
 use tracing::{debug, error, info, Level};
 
+use crate::context::Context;
 use crate::server::api_server;
-use crate::{cni_config::CniConfig, context::Context};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    trace::setup_tracing_to_stdout(Level::DEBUG);
+    sinabro_trace::setup_tracing_to_stdout(Level::DEBUG);
     info!("Hello, world!");
 
     let context = Context::new().await?;
@@ -104,7 +103,8 @@ async fn main() -> anyhow::Result<()> {
         ],
     )?;
 
-    CniConfig::new(&cluster_cidr, &host_route.pod_cidr).write("/etc/cni/net.d/10-sinabro.conf")?;
+    sinabro_cni::Config::new(&cluster_cidr, &host_route.pod_cidr)
+        .write("/etc/cni/net.d/10-sinabro.conf")?;
 
     let pod_cidr = host_route.pod_cidr.clone();
     let store_path = "/var/lib/sinabro/ip_store"; // TODO: make this configurable

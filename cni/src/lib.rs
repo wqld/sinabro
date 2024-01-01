@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
-pub struct CniConfig<'a> {
+pub struct Config<'a> {
     #[serde(rename = "cniVersion")]
     pub cni_version: &'a str,
 
@@ -15,9 +15,9 @@ pub struct CniConfig<'a> {
     pub subnet: &'a str,
 }
 
-impl CniConfig<'_> {
-    pub fn new<'a>(network: &'a str, subnet: &'a str) -> CniConfig<'a> {
-        CniConfig {
+impl Config<'_> {
+    pub fn new<'a>(network: &'a str, subnet: &'a str) -> Config<'a> {
+        Config {
             cni_version: "0.3.1",
             name: "sinabro",
             cni_type: "sinabro-cni",
@@ -37,7 +37,7 @@ impl CniConfig<'_> {
     }
 }
 
-impl<'a> From<&'a str> for CniConfig<'a> {
+impl<'a> From<&'a str> for Config<'a> {
     fn from(json: &'a str) -> Self {
         serde_json::from_str(json).unwrap()
     }
@@ -48,11 +48,11 @@ mod tests {
     use super::*;
 
     #[test]
-    fn write_cni_config() {
+    fn write_config() {
         let cluster_cidr = "10.244.0.0/16";
         let pod_cidr = "10.244.0.0/24";
 
-        CniConfig::new(cluster_cidr, pod_cidr)
+        Config::new(cluster_cidr, pod_cidr)
             .write("/tmp/10-sinabro.conf")
             .unwrap();
 
@@ -64,9 +64,9 @@ mod tests {
     }
 
     #[test]
-    fn cni_config_from_json() {
+    fn config_from_json() {
         let json = r#"{"cniVersion":"0.3.1","name":"sinabro","type":"sinabro-cni","network":"10.244.0.0/16","subnet":"10.244.0.0/24"}"#;
-        let cni_config = CniConfig::from(json);
+        let cni_config = Config::from(json);
 
         assert_eq!("0.3.1", cni_config.cni_version);
         assert_eq!("sinabro", cni_config.name);
