@@ -59,16 +59,16 @@ spec:
       serviceAccountName: sinabro
       initContainers:
       - name: install-cni-bin
-        image: 21kyu/sinabro:0.0.1
-        imagePullPolicy: Always
+        image: sinabro:0.0.1
+        imagePullPolicy: IfNotPresent
         command: ['sh', '-c', 'chmod +x /sinabro-cni && cp /sinabro-cni /cni/sinabro-cni']
         volumeMounts:
         - name: cni-bin
           mountPath: /cni
       containers:
         - name: agent
-          image: 21kyu/sinabro:0.0.1  
-          imagePullPolicy: Always
+          image: sinabro:0.0.1  
+          imagePullPolicy: IfNotPresent
           ports:
           - containerPort: 8080
           env:
