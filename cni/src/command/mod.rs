@@ -14,7 +14,7 @@ pub trait CniCommand {
 pub fn cni_command_from(command: &str) -> anyhow::Result<Box<dyn CniCommand>> {
     match command {
         "ADD" => Ok(Box::new(AddCommand)),
-        "DELETE" => Ok(Box::new(DeleteCommand)),
+        "DEL" => Ok(Box::new(DeleteCommand)),
         _ => anyhow::bail!("unknown command: {}", command),
     }
 }
