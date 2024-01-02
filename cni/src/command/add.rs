@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use ipnet::IpNet;
 use rand::Rng;
 use serde::Serialize;
-use sinabro_cni::Config;
+use sinabro_config::Config;
 use tracing::{debug, error, info};
 
 use super::CniCommand;

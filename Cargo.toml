@@ -1,3 +1,3 @@
 [workspace]
 
-members = ["agent", "cni", "trace"]
+members = ["agent", "cni", "xtask", "common", "config"]

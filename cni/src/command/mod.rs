@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use sinabro_cni::Config;
+use sinabro_config::Config;
 
 use self::{add::AddCommand, delete::DeleteCommand};
 

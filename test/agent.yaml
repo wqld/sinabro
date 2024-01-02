@@ -87,7 +87,7 @@ spec:
               cpu: 100m
               memory: 100Mi
           securityContext:
-            privileged: false
+            privileged: true
             capabilities:
               add: ["NET_RAW", "NET_ADMIN"]
       volumes:

@@ -1,3 +1,4 @@
+mod bpf_loader;
 mod context;
 mod node_route;
 mod server;
@@ -8,6 +9,7 @@ use std::{
     sync::Arc,
 };
 
+use clap::Parser;
 use ipnet::IpNet;
 use tokio::sync::Notify;
 use tracing::{debug, error, info, Level};
@@ -15,9 +17,17 @@ use tracing::{debug, error, info, Level};
 use crate::context::Context;
 use crate::server::api_server;
 
+#[derive(Debug, Parser)]
+struct Opt {
+    #[clap(short, long, default_value = "eth0")]
+    iface: String,
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    sinabro_trace::setup_tracing_to_stdout(Level::DEBUG);
+    let opt = Opt::parse();
+
+    sinabro_config::setup_tracing_to_stdout(Level::DEBUG);
     info!("Hello, world!");
 
     let context = Context::new().await?;
@@ -103,7 +113,10 @@ async fn main() -> anyhow::Result<()> {
         ],
     )?;
 
-    sinabro_cni::Config::new(&cluster_cidr, &host_route.pod_cidr)
+    let bpf_loader = bpf_loader::BpfLoader::new(&opt.iface);
+    bpf_loader.load()?;
+
+    sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;
 
     let pod_cidr = host_route.pod_cidr.clone();

@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-sinabro-trace = { path = "../trace" }
+sinabro-config = { path = "../config" }
 
 anyhow = "1.0"
 async-trait = "0.1"

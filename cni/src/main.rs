@@ -2,12 +2,12 @@ mod command;
 
 use std::{env, io};
 
-use sinabro_cni::Config;
+use sinabro_config::Config;
 use tracing::{debug, Level};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _guard = sinabro_trace::setup_tracing_to_file("/var/log", "sinabro-cni.log", Level::DEBUG)?;
+    let _guard = sinabro_config::setup_tracing_to_file("/var/log", "sinabro-cni.log", Level::DEBUG)?;
 
     let command = env::var("CNI_COMMAND")?;
     debug!("command: {:?}", command);

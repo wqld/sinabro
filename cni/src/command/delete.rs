@@ -1,7 +1,7 @@
 use std::env;
 
 use async_trait::async_trait;
-use sinabro_cni::Config;
+use sinabro_config::Config;
 use tracing::debug;
 
 use super::CniCommand;
