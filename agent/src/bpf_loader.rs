@@ -1,5 +1,7 @@
-use anyhow::Context;
-use aya::programs::{Xdp, XdpFlags};
+use std::net::Ipv4Addr;
+
+use aya::maps::HashMap;
+use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::{include_bytes_aligned, Bpf};
 use aya_log::BpfLogger;
 use tracing::{debug, warn};
@@ -33,11 +35,19 @@ impl BpfLoader {
             warn!("failed to initialize eBPF logger: {}", e);
         }
         bpf.programs().for_each(|(a, _)| debug!("program: {:?}", a));
-        let program: &mut Xdp = bpf.program_mut("xdp").unwrap().try_into()?;
+        // error adding clsact to the interface if it is already added is harmless
+        // the full cleanup can be done with 'sudo tc qdisc del dev eth0 clsact'.
+        let _ = tc::qdisc_add_clsact(&self.iface);
+        let program: &mut SchedClassifier = bpf.program_mut("classifier").unwrap().try_into()?;
         program.load()?;
-        program
-            .attach(&self.iface, XdpFlags::SKB_MODE)
-            .context("failed to attach the XDP program")?;
+        program.attach(&self.iface, TcAttachType::Egress)?;
+
+        let mut blocklist: HashMap<_, u32, u32> =
+            HashMap::try_from(bpf.map_mut("BLOCKLIST").unwrap())?;
+
+        let block_addr: u32 = Ipv4Addr::new(1, 1, 1, 1).try_into()?;
+
+        blocklist.insert(block_addr, 0, 0)?;
 
         Ok(())
     }
