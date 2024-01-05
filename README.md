@@ -6,7 +6,7 @@ Sinabro is a networking, observability and security solution with an eBPF and WA
 
 Currently, Sinabro is in the early stages of development. I am progressively developing it in the following environment, which is also the verified execution environment.
 
-- M3 Max MacBook Pro (devcontainer)
+- Ubuntu 22.04 arm64 on UTM
 - rustup 1.26.0 / rustc 1.75.0
 - Docker version 24.0.7
 - kind v0.20.0
@@ -30,7 +30,7 @@ kind create cluster --config test/kind-config.yaml
 
 ### build
 
-In a Linux environment, you can build the eBPF program and the userspace application, known as the agent, using the following commands. (I have set up my development environment using a devcontainer.)
+In a Linux environment, you can build the eBPF program and the userspace application, known as the agent, using the following commands.
 
 ```bash
 cargo xtask build-ebpf

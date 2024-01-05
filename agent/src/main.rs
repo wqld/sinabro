@@ -3,23 +3,21 @@ mod context;
 mod node_route;
 mod server;
 
-use std::{
-    env,
-    net::{IpAddr, Ipv4Addr, Ipv6Addr},
-    sync::Arc,
-};
+use std::env;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+use std::sync::Arc;
 
 use clap::Parser;
 use ipnet::IpNet;
+use log::{debug, info};
 use tokio::sync::Notify;
-use tracing::{debug, error, info, Level};
+use tracing::{error, Level};
 
 use crate::context::Context;
-use crate::server::api_server;
 
 #[derive(Debug, Parser)]
 struct Opt {
-    #[clap(short, long, default_value = "eth0")]
+    #[clap(short, long, default_value = "lo")]
     iface: String,
 }
 
@@ -113,9 +111,6 @@ async fn main() -> anyhow::Result<()> {
         ],
     )?;
 
-    let bpf_loader = bpf_loader::BpfLoader::new(&opt.iface);
-    bpf_loader.load()?;
-
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;
 
@@ -123,9 +118,8 @@ async fn main() -> anyhow::Result<()> {
     let store_path = "/var/lib/sinabro/ip_store"; // TODO: make this configurable
     let shutdown = Arc::new(Notify::new());
 
-    api_server::start(&pod_cidr, store_path, shutdown)
-        .await
-        .unwrap();
+    let bpf_loader = bpf_loader::BpfLoader::new(&opt.iface);
+    bpf_loader.load(&pod_cidr, store_path, shutdown).await?;
 
     Ok(())
 }

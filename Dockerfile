@@ -6,5 +6,7 @@ COPY --chown=root:root /target/aarch64-unknown-linux-musl/debug/sinabro-cni /sin
 
 RUN apk update && apk add iproute2 iptables
 
+ENV RUST_LOG=info
+
 EXPOSE 8080
 CMD ["/app/agent"]
