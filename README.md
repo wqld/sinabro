@@ -55,3 +55,12 @@ kubectl apply -f test/agent.yaml
 ## features (still in development)
 
 Only networking within the same network for containers is supported.
+
+### TODO
+
+- [ ] Use eBPF for NAT of outbound cluster traffic
+- [ ] Route service traffic without kube-proxy
+- [ ] Enforce network policies with eBPF
+- [ ] Enable inter-host communication across different networks via VXLAN
+- [ ] Implement service load balancing
+- [ ] Collect network telemetry with eBPF
