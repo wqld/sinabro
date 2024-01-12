@@ -27,6 +27,7 @@ impl BpfLoader {
         host_ip: &str,
         cluster_cidr: &str,
         pod_cidr: &str,
+        node_ips: &[String],
         store_path: &str,
         shutdown: Arc<Notify>,
     ) -> anyhow::Result<()> {
@@ -58,8 +59,11 @@ impl BpfLoader {
         tc_egress.load()?;
         tc_egress.attach(&self.iface, TcAttachType::Egress)?;
 
-        let mut network_info: HashMap<_, u8, NetworkInfo> =
-            HashMap::try_from(bpf.map_mut("NETWORK_INFO").unwrap())?;
+        let mut net_config_map: HashMap<_, u8, NetworkInfo> =
+            HashMap::try_from(bpf.take_map("NET_CONFIG_MAP").unwrap())?;
+
+        let mut node_map: HashMap<_, u32, u8> =
+            HashMap::try_from(bpf.take_map("NODE_MAP").unwrap())?;
 
         let host_ip_info = NetworkInfo {
             ip: host_ip.parse::<Ipv4Addr>()?.into(),
@@ -74,8 +78,15 @@ impl BpfLoader {
             subnet_mask: u32::MAX << (32 - cidr_bits),
         };
 
-        network_info.insert(HOST_IP_KEY, host_ip_info, 0)?;
-        network_info.insert(CLUSTER_CIDR_KEY, cluster_cidr_info, 0)?;
+        net_config_map.insert(HOST_IP_KEY, host_ip_info, 0)?;
+        net_config_map.insert(CLUSTER_CIDR_KEY, cluster_cidr_info, 0)?;
+
+        node_ips.iter().for_each(|ip| {
+            let ip_addr: u32 = ip.parse::<Ipv4Addr>().unwrap().into();
+            node_map
+                .insert(ip_addr, 0, 0)
+                .expect("failed to insert node ip");
+        });
 
         api_server::start(pod_cidr, store_path, shutdown)
             .await

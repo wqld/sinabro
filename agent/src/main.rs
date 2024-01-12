@@ -30,7 +30,7 @@ async fn main() -> anyhow::Result<()> {
 
     let context = Context::new().await?;
 
-    let host_ip = env::var("HOST_IP").unwrap_or("172.18.0.2".to_owned());
+    let host_ip = env::var("HOST_IP").expect("HOST_IP is not set");
     debug!("host ip: {}", host_ip);
 
     let node_routes = context.get_node_routes().await?;
@@ -100,10 +100,21 @@ async fn main() -> anyhow::Result<()> {
     let pod_cidr = host_route.pod_cidr.clone();
     let store_path = "/var/lib/sinabro/ip_store"; // TODO: make this configurable
     let shutdown = Arc::new(Notify::new());
+    let node_ips: Vec<String> = node_routes
+        .iter()
+        .map(|node_route| node_route.ip.clone())
+        .collect();
 
     let bpf_loader = bpf_loader::BpfLoader::new(&opt.iface);
     bpf_loader
-        .load(&host_ip, &cluster_cidr, &pod_cidr, store_path, shutdown)
+        .load(
+            &host_ip,
+            &cluster_cidr,
+            &pod_cidr,
+            &node_ips,
+            store_path,
+            shutdown,
+        )
         .await?;
 
     Ok(())

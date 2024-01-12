@@ -24,6 +24,9 @@ use network_types::{
 static mut NET_CONFIG_MAP: HashMap<u8, NetworkInfo> = HashMap::with_max_entries(2, 0);
 
 #[map]
+static mut NODE_MAP: HashMap<u32, u8> = HashMap::with_max_entries(128, 0);
+
+#[map]
 static mut SNAT_IPV4_MAP: HashMap<NatKey, OriginValue> = HashMap::with_max_entries(128, 0);
 
 #[classifier]
@@ -71,7 +74,25 @@ fn handle_tcp_ingress(mut ctx: TcContext) -> Result<i32, ()> {
         dst_port: src_port,
     };
 
-    let origin_value = unsafe { SNAT_IPV4_MAP.get(&nat_key).ok_or(()) }?;
+    info!(
+        &ctx,
+        "ingress: {:i}:{} -> {:i}:{}", src_ip, src_port, dst_ip, dst_port,
+    );
+
+    let origin_value = unsafe {
+        match SNAT_IPV4_MAP.get(&nat_key) {
+            Some(value) => value,
+            None => {
+                info!(&ctx, "cannot find nat key");
+                return Ok(TC_ACT_PIPE);
+            }
+        }
+    };
+
+    if origin_value.ip == dst_ip && origin_value.port == dst_port {
+        info!(&ctx, "no need to dnat");
+        return Ok(TC_ACT_PIPE);
+    }
 
     snat_v4_rewrite_headers(
         &mut ctx,
@@ -257,8 +278,7 @@ fn is_ip_in_cidr(ip: u32, cidr: &NetworkInfo) -> bool {
 }
 
 fn is_node_ip(ip: u32) -> bool {
-    // TODO: get node ip from map
-    ip == 2886860801 || ip == 2886860803 || ip == 2886860804
+    unsafe { NODE_MAP.get(&ip).is_some() }
 }
 
 #[panic_handler]
