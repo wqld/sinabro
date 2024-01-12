@@ -58,7 +58,7 @@ Only networking within the same network for containers is supported.
 
 ### TODO
 
-- [ ] Use eBPF for NAT of outbound cluster traffic
+- [x] eBPF-based masquerading: implement NAT with eBPF for traffic going out of the cluster
 - [ ] Develop a Sinabro-specific netlink library
 - [ ] Route service traffic without kube-proxy
 - [ ] Enforce network policies with eBPF

@@ -4,7 +4,7 @@ FROM alpine:3.18
 COPY --chown=root:root /target/aarch64-unknown-linux-musl/debug/agent /app/
 COPY --chown=root:root /target/aarch64-unknown-linux-musl/debug/sinabro-cni /sinabro-cni
 
-RUN apk update && apk add iproute2 iptables
+RUN apk update && apk add iproute2
 
 ENV RUST_LOG=info
 

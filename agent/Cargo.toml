@@ -10,8 +10,10 @@ edition = "2021"
 sinabro-config = { path = "../config" }
 
 axum = "0.7.2"
-aya = { git = "https://github.com/aya-rs/aya", features = ["async_tokio"] }
-aya-log = { git = "https://github.com/aya-rs/aya" }
+aya = { git = "https://github.com/aya-rs/aya", rev = "1979da92a722bacd9c984865a4c7108e22fb618f", features = [
+    "async_tokio",
+] }
+aya-log = { git = "https://github.com/aya-rs/aya", rev = "1979da92a722bacd9c984865a4c7108e22fb618f" }
 clap = { version = "4.1", features = ["derive"] }
 common = { path = "../common", features = ["user"] }
 anyhow = "1"

@@ -17,7 +17,7 @@ use crate::context::Context;
 
 #[derive(Debug, Parser)]
 struct Opt {
-    #[clap(short, long, default_value = "lo")]
+    #[clap(short, long, default_value = "eth0")]
     iface: String,
 }
 
@@ -94,23 +94,6 @@ async fn main() -> anyhow::Result<()> {
             )
         })?;
 
-    run_command(
-        "iptables",
-        &[
-            "-t",
-            "nat",
-            "-A",
-            "POSTROUTING",
-            "-s",
-            &host_route.pod_cidr,
-            "!",
-            "-o",
-            bridge_name,
-            "-j",
-            "MASQUERADE",
-        ],
-    )?;
-
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;
 
@@ -119,7 +102,9 @@ async fn main() -> anyhow::Result<()> {
     let shutdown = Arc::new(Notify::new());
 
     let bpf_loader = bpf_loader::BpfLoader::new(&opt.iface);
-    bpf_loader.load(&pod_cidr, store_path, shutdown).await?;
+    bpf_loader
+        .load(&host_ip, &cluster_cidr, &pod_cidr, store_path, shutdown)
+        .await?;
 
     Ok(())
 }

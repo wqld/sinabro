@@ -18,9 +18,9 @@ metadata:
 spec:
   containers:
     - name: ubuntu
-      image: smatyukevich/ubuntu-net-utils
+      image: nicolaka/netshoot
       command:
-        - "bin/bash"
+        - "sh"
         - "-c"
         - "sleep 10000"
   nodeSelector:
@@ -46,9 +46,9 @@ metadata:
 spec:
   containers:
     - name: ubuntu
-      image: smatyukevich/ubuntu-net-utils
+      image: nicolaka/netshoot
       command:
-        - "bin/bash"
+        - "sh"
         - "-c"
         - "sleep 10000"
   nodeSelector:

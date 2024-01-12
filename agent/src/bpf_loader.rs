@@ -1,8 +1,11 @@
+use std::net::Ipv4Addr;
 use std::sync::Arc;
 
+use aya::maps::HashMap;
 use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::{include_bytes_aligned, Bpf};
 use aya_log::BpfLogger;
+use common::{NetworkInfo, CLUSTER_CIDR_KEY, HOST_IP_KEY};
 use tokio::sync::Notify;
 use tracing::warn;
 
@@ -21,6 +24,8 @@ impl BpfLoader {
 
     pub async fn load(
         &self,
+        host_ip: &str,
+        cluster_cidr: &str,
         pod_cidr: &str,
         store_path: &str,
         shutdown: Arc<Notify>,
@@ -44,11 +49,35 @@ impl BpfLoader {
         // error adding clsact to the interface if it is already added is harmless
         // the full cleanup can be done with 'sudo tc qdisc del dev eth0 clsact'.
         let _ = tc::qdisc_add_clsact(&self.iface);
-        let program: &mut SchedClassifier = bpf.program_mut("tc_egress").unwrap().try_into()?;
-        program.load()?;
-        program.attach(&self.iface, TcAttachType::Egress)?;
 
-        api_server::start(&pod_cidr, store_path, shutdown)
+        let tc_ingress: &mut SchedClassifier = bpf.program_mut("tc_ingress").unwrap().try_into()?;
+        tc_ingress.load()?;
+        tc_ingress.attach(&self.iface, TcAttachType::Ingress)?;
+
+        let tc_egress: &mut SchedClassifier = bpf.program_mut("tc_egress").unwrap().try_into()?;
+        tc_egress.load()?;
+        tc_egress.attach(&self.iface, TcAttachType::Egress)?;
+
+        let mut network_info: HashMap<_, u8, NetworkInfo> =
+            HashMap::try_from(bpf.map_mut("NETWORK_INFO").unwrap())?;
+
+        let host_ip_info = NetworkInfo {
+            ip: host_ip.parse::<Ipv4Addr>()?.into(),
+            subnet_mask: 0,
+        };
+
+        let parts: Vec<&str> = cluster_cidr.split('/').collect();
+        let cidr_bits = parts[1].parse::<u32>()?;
+
+        let cluster_cidr_info = NetworkInfo {
+            ip: parts[0].parse::<Ipv4Addr>()?.into(),
+            subnet_mask: u32::MAX << (32 - cidr_bits),
+        };
+
+        network_info.insert(HOST_IP_KEY, host_ip_info, 0)?;
+        network_info.insert(CLUSTER_CIDR_KEY, cluster_cidr_info, 0)?;
+
+        api_server::start(pod_cidr, store_path, shutdown)
             .await
             .unwrap();
 
