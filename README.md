@@ -63,5 +63,6 @@ Only networking within the same network for containers is supported.
 - [ ] Route service traffic without kube-proxy
 - [ ] Enforce network policies with eBPF
 - [ ] Enable inter-host communication across different networks via VXLAN
+- [ ] Building an XDP-based BGP peering router
 - [ ] Implement service load balancing
 - [ ] Collect network telemetry with eBPF
