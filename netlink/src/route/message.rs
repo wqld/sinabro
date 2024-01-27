@@ -370,7 +370,7 @@ pub struct AddressMessage {
 
 impl Attribute for AddressMessage {
     fn len(&self) -> usize {
-        16
+        8
     }
 
     fn serialize(&self) -> Result<Vec<u8>> {

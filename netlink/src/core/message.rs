@@ -4,7 +4,7 @@ use std::{
     vec,
 };
 
-use anyhow::{anyhow, bail, Ok, Result};
+use anyhow::{bail, Ok, Result};
 use libc::{NLM_F_MULTI, NLM_F_REQUEST};
 use serde::{Deserialize, Serialize};
 
@@ -12,9 +12,6 @@ use crate::align_of;
 
 const NLMSG_ALIGNTO: usize = 0x4;
 const NLMSG_HDRLEN: usize = 0x10;
-
-const NLMSG_DONE: u16 = 3;
-const NLMSG_ERROR: u16 = 2;
 
 pub struct Messages(Vec<Message>);
 
@@ -107,25 +104,8 @@ impl Message {
         payload.extend(data);
     }
 
-    pub fn verify_header(&self, seq: u32, pid: u32, msg_type: u16) -> Result<()> {
-        self.header.verify(seq, pid, msg_type)
-    }
-
-    pub fn extract_payload(&self) -> Result<Option<Vec<u8>>> {
-        match self.header.nlmsg_type {
-            NLMSG_DONE | NLMSG_ERROR => {
-                let payload = self.payload.as_ref().unwrap();
-                let err_no = i32::from_ne_bytes(payload[0..4].try_into()?);
-
-                if err_no == 0 {
-                    return Ok(None);
-                }
-
-                let err_msg = std::io::Error::from_raw_os_error(-err_no);
-                Err(anyhow!("{} ({}): {:?}", err_msg, -err_no, &payload[4..]))
-            }
-            _ => Ok(self.payload.clone()),
-        }
+    pub fn verify_header(&self, seq: u32, pid: u32) -> Result<()> {
+        self.header.verify(seq, pid)
     }
 
     pub fn check_last_message(&self) -> bool {
@@ -154,17 +134,13 @@ impl Header {
         }
     }
 
-    pub fn verify(&self, seq: u32, pid: u32, msg_type: u16) -> Result<()> {
+    pub fn verify(&self, seq: u32, pid: u32) -> Result<()> {
         if self.nlmsg_seq != seq {
             bail!("Invalid sequence number: {} != {}", self.nlmsg_seq, seq);
         }
 
         if self.nlmsg_pid != pid {
             bail!("Invalid process ID: {} != {}", self.nlmsg_pid, pid);
-        }
-
-        if msg_type != 0 && self.nlmsg_type != msg_type {
-            bail!("Invalid message type: {} != {}", self.nlmsg_type, msg_type);
         }
 
         Ok(())

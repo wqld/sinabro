@@ -37,7 +37,7 @@ impl From<SocketHandle> for LinkHandle {
 }
 
 impl LinkHandle {
-    pub fn create(&mut self, link: &(impl Link + ?Sized), flags: i32) -> Result<()> {
+    pub fn create<T: Link + ?Sized>(&mut self, link: &T, flags: i32) -> Result<()> {
         let base = link.attrs();
         let mut req = Message::new(libc::RTM_NEWLINK, flags);
         let mut msg = LinkMessage::new(libc::AF_UNSPEC);
@@ -54,7 +54,6 @@ impl LinkHandle {
         req.add(&msg.serialize()?);
 
         let name = RouteAttr::new(libc::IFLA_IFNAME, &zero_terminated(&base.name));
-
         req.add(&name.serialize()?);
 
         if base.mtu > 0 {
@@ -93,7 +92,7 @@ impl LinkHandle {
         Ok(())
     }
 
-    pub fn delete(&mut self, link: &(impl Link + ?Sized)) -> Result<()> {
+    pub fn delete<T: Link + ?Sized>(&mut self, link: &T) -> Result<()> {
         let base = link.attrs();
 
         let mut req = Message::new(libc::RTM_DELLINK, libc::NLM_F_ACK);
@@ -136,7 +135,7 @@ impl LinkHandle {
         }
     }
 
-    pub fn setup(&mut self, link: &(impl Link + ?Sized)) -> Result<()> {
+    pub fn setup<T: Link + ?Sized>(&mut self, link: &T) -> Result<()> {
         let mut req = Message::new(libc::RTM_NEWLINK, libc::NLM_F_ACK);
         let base = link.attrs();
 
