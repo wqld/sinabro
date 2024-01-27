@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 
 use crate::core::{message::Message, socket::Socket};
 
-use super::{addr::AddrHandle, link::LinkHandle};
+use super::{addr::AddrHandle, link::LinkHandle, routing::RouteHandle};
 
 const PID_KERNEL: u32 = 0;
 
@@ -36,6 +36,10 @@ impl SocketHandle {
         AddrHandle::from(self.clone())
     }
 
+    pub fn handle_route(&self) -> RouteHandle {
+        RouteHandle::from(self.clone())
+    }
+
     pub fn request(&mut self, msg: &mut Message, res_type: u16) -> Result<Vec<Vec<u8>>> {
         let next_seq = self.next_seq();
         msg.header.nlmsg_seq = next_seq;
@@ -56,7 +60,7 @@ impl SocketHandle {
                 );
             }
 
-            for m in msgs {
+            for mut m in msgs {
                 if m.verify_header(next_seq, pid).is_err() {
                     continue;
                 }
@@ -77,7 +81,7 @@ impl SocketHandle {
                         continue;
                     }
                     _ => {
-                        res.push(m.payload.clone().unwrap());
+                        res.push(m.payload.take().unwrap());
                     }
                 }
 
