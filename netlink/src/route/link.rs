@@ -181,15 +181,19 @@ pub struct LinkAttrs {
 }
 
 impl LinkAttrs {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            ..Default::default()
+        }
     }
 
     fn from(link_msg: LinkMessage) -> Self {
-        let mut attrs = Self::new();
-        attrs.index = link_msg.index;
-        attrs.raw_flags = link_msg.flags;
-        attrs
+        Self {
+            index: link_msg.index,
+            raw_flags: link_msg.flags,
+            ..Default::default()
+        }
     }
 }
 
@@ -223,6 +227,18 @@ impl Link for Kind {
 
     fn kind(&self) -> &Kind {
         self
+    }
+}
+
+impl Kind {
+    pub fn new_bridge(name: &str) -> Self {
+        Self::Bridge {
+            attrs: LinkAttrs::new(name),
+            hello_time: None,
+            ageing_time: None,
+            multicast_snooping: None,
+            vlan_filtering: None,
+        }
     }
 }
 

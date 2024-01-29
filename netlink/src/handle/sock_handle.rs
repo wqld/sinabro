@@ -28,16 +28,16 @@ impl SocketHandle {
         self.seq
     }
 
-    pub fn handle_link(&self) -> LinkHandle {
-        LinkHandle::from(self.clone())
+    pub fn handle_link(&mut self) -> LinkHandle<'_> {
+        LinkHandle::from(self)
     }
 
-    pub fn handle_addr(&self) -> AddrHandle {
-        AddrHandle::from(self.clone())
+    pub fn handle_addr(&mut self) -> AddrHandle<'_> {
+        AddrHandle::from(self)
     }
 
-    pub fn handle_route(&self) -> RouteHandle {
-        RouteHandle::from(self.clone())
+    pub fn handle_route(&mut self) -> RouteHandle<'_> {
+        RouteHandle::from(self)
     }
 
     pub fn request(&mut self, msg: &mut Message, res_type: u16) -> Result<Vec<Vec<u8>>> {

@@ -16,29 +16,35 @@ use crate::{
 
 use super::sock_handle::SocketHandle;
 
-pub struct RouteHandle(SocketHandle);
+const RTM_F_LOOKUP_TABLE: u32 = 0x1000;
 
-impl Deref for RouteHandle {
+const RTA_VIA: u16 = 18;
+
+pub struct RouteHandle<'a> {
+    pub socket: &'a mut SocketHandle,
+}
+
+impl<'a> Deref for RouteHandle<'a> {
     type Target = SocketHandle;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.socket
     }
 }
 
-impl DerefMut for RouteHandle {
+impl DerefMut for RouteHandle<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        self.socket
     }
 }
 
-impl From<SocketHandle> for RouteHandle {
-    fn from(handle: SocketHandle) -> Self {
-        Self(handle)
+impl<'a> From<&'a mut SocketHandle> for RouteHandle<'a> {
+    fn from(socket: &'a mut SocketHandle) -> Self {
+        Self { socket }
     }
 }
 
-impl RouteHandle {
+impl RouteHandle<'_> {
     pub fn handle(&mut self, route: &Routing, proto: u16, flags: i32) -> Result<()> {
         let mut req = Message::new(proto, flags);
 
@@ -96,6 +102,10 @@ impl RouteHandle {
             attrs.push(RouteAttr::new(libc::RTA_GATEWAY, &gw_data));
         }
 
+        if let Some(via) = &route.via {
+            attrs.push(RouteAttr::new(RTA_VIA, &via.encode()));
+        }
+
         // TODO: more attributes to be added
 
         msg.flags = route.flags;
@@ -125,7 +135,7 @@ impl RouteHandle {
 
         msg.family = family as u8;
         msg.dst_len = bit_len;
-        msg.flags = libc::RTM_F_LOOKUP_TABLE;
+        msg.flags = RTM_F_LOOKUP_TABLE;
 
         let rta_dst = RouteAttr::new(libc::RTA_DST, &dst_data);
 
@@ -142,18 +152,20 @@ impl RouteHandle {
 
 #[cfg(test)]
 mod tests {
-    use crate::{route::link::LinkAttrs, test_setup};
+    use crate::{
+        route::{link::LinkAttrs, routing::Via},
+        test_setup,
+    };
 
     use super::*;
 
     #[test]
     fn test_route_handle() {
         test_setup!();
-        let handle = super::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut handle = super::SocketHandle::new(libc::NETLINK_ROUTE);
         let mut link_handle = handle.handle_link();
-        let mut route_handle = handle.handle_route();
-        let mut attr = LinkAttrs::new();
-        attr.name = "lo".to_string();
+
+        let attr = LinkAttrs::new("lo");
 
         let link = link_handle.get(&attr).unwrap();
 
@@ -165,6 +177,56 @@ mod tests {
             src: Some("127.0.0.2".parse().unwrap()),
             ..Default::default()
         };
+
+        let mut route_handle = handle.handle_route();
+
+        route_handle
+            .handle(
+                &route,
+                libc::RTM_NEWROUTE,
+                libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK,
+            )
+            .unwrap();
+
+        let routes = route_handle.get(&route.dst.unwrap().addr()).unwrap();
+
+        assert_eq!(routes.len(), 1);
+        assert_eq!(routes[0].oif_index, link.attrs().index);
+        assert_eq!(
+            routes[0].dst.unwrap().network(),
+            route.dst.unwrap().network()
+        );
+
+        route_handle
+            .handle(&route, libc::RTM_DELROUTE, libc::NLM_F_ACK)
+            .unwrap();
+
+        let res = route_handle.get(&route.dst.unwrap().addr()).err();
+        assert!(res.is_some());
+    }
+
+    #[test]
+    fn test_route_handle_via() {
+        test_setup!();
+        let mut handle = super::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut link_handle = handle.handle_link();
+
+        let attr = LinkAttrs::new("lo");
+
+        let link = link_handle.get(&attr).unwrap();
+
+        link_handle.setup(&link).unwrap();
+
+        let via = Via::new("2001::1").unwrap();
+
+        let route = Routing {
+            oif_index: link.attrs().index,
+            dst: Some("192.168.0.0/24".parse().unwrap()),
+            via: Some(via),
+            ..Default::default()
+        };
+
+        let mut route_handle = handle.handle_route();
 
         route_handle
             .handle(

@@ -14,30 +14,32 @@ use super::{sock_handle::SocketHandle, zero_terminated};
 
 const IFF_UP: u32 = 0x1;
 
-pub struct LinkHandle(SocketHandle);
+pub struct LinkHandle<'a> {
+    pub socket: &'a mut SocketHandle,
+}
 
-impl Deref for LinkHandle {
+impl<'a> Deref for LinkHandle<'a> {
     type Target = SocketHandle;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.socket
     }
 }
 
-impl DerefMut for LinkHandle {
+impl DerefMut for LinkHandle<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        self.socket
     }
 }
 
-impl From<SocketHandle> for LinkHandle {
-    fn from(handle: SocketHandle) -> Self {
-        Self(handle)
+impl<'a> From<&'a mut SocketHandle> for LinkHandle<'a> {
+    fn from(socket: &'a mut SocketHandle) -> Self {
+        Self { socket }
     }
 }
 
-impl LinkHandle {
-    pub fn create<T: Link + ?Sized>(&mut self, link: &T, flags: i32) -> Result<()> {
+impl LinkHandle<'_> {
+    pub fn add<T: Link + ?Sized>(&mut self, link: &T, flags: i32) -> Result<()> {
         let base = link.attrs();
         let mut req = Message::new(libc::RTM_NEWLINK, flags);
         let mut msg = LinkMessage::new(libc::AF_UNSPEC);
@@ -163,15 +165,14 @@ mod tests {
     #[tokio::test]
     async fn test_link_add_modify_del() {
         test_setup!();
-        let handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
         let mut link_handle = handle.handle_link();
-        let mut attr = LinkAttrs::new();
-        attr.name = "foo".to_string();
+        let mut attr = LinkAttrs::new("foo");
 
         let link = Kind::Dummy(attr.clone());
 
         link_handle
-            .create(
+            .add(
                 &link,
                 libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK,
             )
@@ -185,7 +186,7 @@ mod tests {
 
         let link = Kind::Dummy(attr.clone());
 
-        link_handle.create(&link, libc::NLM_F_ACK).unwrap();
+        link_handle.add(&link, libc::NLM_F_ACK).unwrap();
 
         let link = link_handle.get(&attr).unwrap();
         assert_eq!(link.attrs().name, "bar");
@@ -200,10 +201,9 @@ mod tests {
     #[test]
     fn test_link_bridge() {
         test_setup!();
-        let handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
         let mut link_handle = handle.handle_link();
-        let mut attr = LinkAttrs::new();
-        attr.name = "foo".to_string();
+        let attr = LinkAttrs::new("foo");
 
         let link = Kind::Bridge {
             attrs: attr.clone(),
@@ -214,7 +214,7 @@ mod tests {
         };
 
         link_handle
-            .create(
+            .add(
                 &link,
                 libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK,
             )
@@ -249,10 +249,9 @@ mod tests {
     #[test]
     fn test_link_veth() {
         test_setup!();
-        let handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
         let mut link_handle = handle.handle_link();
-        let mut attr = LinkAttrs::new();
-        attr.name = "foo".to_string();
+        let mut attr = LinkAttrs::new("foo");
         attr.mtu = 1400;
         attr.tx_queue_len = 100;
         attr.num_tx_queues = 4;
@@ -267,7 +266,7 @@ mod tests {
         };
 
         link_handle
-            .create(
+            .add(
                 &link,
                 libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK,
             )
@@ -305,10 +304,9 @@ mod tests {
     #[test]
     fn test_link_get() {
         test_setup!();
-        let handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
         let mut link_handle = handle.handle_link();
-        let mut attr = LinkAttrs::new();
-        attr.name = "lo".to_string();
+        let attr = LinkAttrs::new("lo");
 
         let link = link_handle.get(&attr).unwrap();
 

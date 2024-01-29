@@ -5,13 +5,18 @@ mod server;
 
 use std::env;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
+
 use std::sync::Arc;
 
 use clap::Parser;
 use ipnet::IpNet;
 use log::{debug, info};
+use sinabro_netlink::netlink::Netlink;
+use sinabro_netlink::route::addr::Address;
+use sinabro_netlink::route::link::{Kind, Link, LinkAttrs};
+use sinabro_netlink::route::routing::{Routing, Via};
 use tokio::sync::Notify;
-use tracing::{error, Level};
+use tracing::Level;
 
 use crate::context::Context;
 
@@ -67,32 +72,55 @@ async fn main() -> anyhow::Result<()> {
 
     let bridge_name = "cni0";
 
+    let mut netlink = Netlink::new();
+
     // create and configure the bridge with the cni0 name
-    run_command("ip", &["link", "add", bridge_name, "type", "bridge"])?;
-    run_command("ip", &["link", "set", bridge_name, "up"])?;
-    run_command(
-        "ip",
-        &["addr", "add", bridge_ip.as_str(), "dev", bridge_name],
-    )?;
+    let bridge = Kind::new_bridge(bridge_name);
+
+    if let Err(e) = netlink.link_add(&bridge) {
+        if e.to_string().contains("File exists") {
+            info!("cni0 interface already exists");
+        } else {
+            return Err(e);
+        }
+    }
+
+    let bridge = netlink.link_get(bridge.attrs())?;
+    netlink.link_setup(&bridge)?;
+
+    let address = Address {
+        ip: bridge_ip.as_str().parse::<IpNet>()?,
+        ..Default::default()
+    };
+
+    if let Err(e) = netlink.addr_add(&bridge, &address) {
+        if e.to_string().contains("File exists") {
+            info!("cni0 interface already has an ip address");
+        } else {
+            return Err(e);
+        }
+    }
+
+    let eth0_attrs = LinkAttrs::new("eth0");
+    let eth0 = netlink.link_get(&eth0_attrs)?;
+    netlink.link_setup(&eth0)?;
 
     // setup additional route rule
     node_routes
         .iter()
         .filter(|node_route| node_route.ip != host_ip)
         .try_for_each(|node_route| {
-            run_command(
-                "ip",
-                &[
-                    "route",
-                    "add",
-                    &node_route.pod_cidr,
-                    "via",
-                    &node_route.ip,
-                    "dev",
-                    "eth0", // TODO: need to retrieve the name of the interface on the host
-                ],
-            )
+            let route = Routing {
+                oif_index: eth0.attrs().index,
+                dst: Some(node_route.pod_cidr.parse().unwrap()),
+                via: Some(Via::new(&node_route.ip).unwrap()),
+                ..Default::default()
+            };
+
+            netlink.route_add(&route)
         })?;
+
+    info!("4");
 
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;
@@ -116,22 +144,6 @@ async fn main() -> anyhow::Result<()> {
             shutdown,
         )
         .await?;
-
-    Ok(())
-}
-
-fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
-    info!("running command: {} {}", cmd, args.join(" "));
-
-    let out = std::process::Command::new(cmd)
-        .args(args)
-        .output()
-        .expect("failed to run command");
-
-    match out.status.success() {
-        true => {}
-        _ => error!("{}", String::from_utf8_lossy(&out.stderr)),
-    }
 
     Ok(())
 }

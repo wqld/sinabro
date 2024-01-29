@@ -15,6 +15,28 @@ pub enum AddrCmd {
     Delete,
 }
 
+pub enum AddrFamily {
+    All = 0,
+    V4 = 2,
+    V6 = 10,
+}
+
+impl From<AddrFamily> for i32 {
+    fn from(val: AddrFamily) -> Self {
+        val as i32
+    }
+}
+
+impl From<u16> for AddrFamily {
+    fn from(val: u16) -> Self {
+        match val {
+            2 => Self::V4,
+            10 => Self::V6,
+            _ => Self::All,
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct Address {
     pub index: i32,

@@ -1,2 +1,4 @@
 [workspace]
 members = ["xtask", "agent", "common", "config", "cni", "netlink"]
+
+resolver = "2"

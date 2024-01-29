@@ -1,8 +1,10 @@
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+use anyhow::Result;
 use ipnet::IpNet;
 
 use super::{
+    addr::AddrFamily,
     message::{Attribute, RouteAttrs, RouteMessage},
     vec_to_addr,
 };
@@ -27,6 +29,7 @@ pub struct Routing {
     pub protocol: u8,
     pub scope: u8,
     pub rtm_type: u8,
+    pub via: Option<Via>,
     pub flags: u32,
 }
 
@@ -69,6 +72,39 @@ impl From<&[u8]> for Routing {
         }
 
         routing
+    }
+}
+
+pub struct Via {
+    pub family: u16,
+    pub addr: IpAddr,
+}
+
+impl Via {
+    pub fn new(addr: &str) -> Result<Self> {
+        let (family, addr) = match addr.parse::<Ipv4Addr>() {
+            Ok(ip) => (AddrFamily::V4 as u16, IpAddr::V4(ip)),
+            Err(_) => {
+                let ip = addr.parse::<Ipv6Addr>()?;
+                (AddrFamily::V6 as u16, IpAddr::V6(ip))
+            }
+        };
+
+        Ok(Self { family, addr })
+    }
+
+    pub fn encode(&self) -> Vec<u8> {
+        let mut buf = Vec::new();
+        buf.extend_from_slice(&self.family.to_ne_bytes());
+        match self.addr {
+            IpAddr::V4(ip) => {
+                buf.extend_from_slice(&ip.octets());
+            }
+            IpAddr::V6(ip) => {
+                buf.extend_from_slice(&ip.octets());
+            }
+        }
+        buf
     }
 }
 

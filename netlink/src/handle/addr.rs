@@ -17,29 +17,31 @@ use crate::{
 
 use super::{sock_handle::SocketHandle, zero_terminated};
 
-pub struct AddrHandle(SocketHandle);
+pub struct AddrHandle<'a> {
+    pub socket: &'a mut SocketHandle,
+}
 
-impl Deref for AddrHandle {
+impl<'a> Deref for AddrHandle<'a> {
     type Target = SocketHandle;
 
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.socket
     }
 }
 
-impl DerefMut for AddrHandle {
+impl DerefMut for AddrHandle<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        self.socket
     }
 }
 
-impl From<SocketHandle> for AddrHandle {
-    fn from(handle: SocketHandle) -> Self {
-        Self(handle)
+impl<'a> From<&'a mut SocketHandle> for AddrHandle<'a> {
+    fn from(socket: &'a mut SocketHandle) -> Self {
+        Self { socket }
     }
 }
 
-impl AddrHandle {
+impl AddrHandle<'_> {
     pub fn handle<T>(&mut self, link: &T, addr: &Address, proto: u16, flags: i32) -> Result<()>
     where
         T: Link + ?Sized,
@@ -112,7 +114,7 @@ impl AddrHandle {
         Ok(())
     }
 
-    pub fn show<T>(&mut self, link: &T, family: i32) -> Result<Vec<Address>>
+    pub fn list<T>(&mut self, link: &T, family: i32) -> Result<Vec<Address>>
     where
         T: Link + ?Sized,
     {
@@ -146,11 +148,10 @@ mod tests {
     #[test]
     fn test_addr_handle() {
         test_setup!();
-        let handle = super::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut handle = super::SocketHandle::new(libc::NETLINK_ROUTE);
         let mut link_handle = handle.handle_link();
-        let mut addr_handle = handle.handle_addr();
-        let mut attr = LinkAttrs::new();
-        attr.name = "lo".to_string();
+
+        let attr = LinkAttrs::new("lo");
 
         let link = link_handle.get(&attr).unwrap();
 
@@ -163,9 +164,11 @@ mod tests {
         let proto = libc::RTM_NEWADDR;
         let flags = libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK;
 
+        let mut addr_handle = handle.handle_addr();
+
         addr_handle.handle(&link, &addr, proto, flags).unwrap();
 
-        let addrs = addr_handle.show(&link, libc::AF_UNSPEC).unwrap();
+        let addrs = addr_handle.list(&link, libc::AF_UNSPEC).unwrap();
 
         assert_eq!(addrs.len(), 1);
         assert_eq!(addrs[0].ip, address);

@@ -1,10 +1,10 @@
 use std::{
     mem::size_of,
-    ops::{ControlFlow, Deref, DerefMut},
+    ops::{Deref, DerefMut},
     vec,
 };
 
-use anyhow::{anyhow, bail, Error, Ok, Result};
+use anyhow::{bail, Ok, Result};
 use libc::{NLM_F_MULTI, NLM_F_REQUEST};
 use serde::{Deserialize, Serialize};
 
@@ -12,9 +12,6 @@ use crate::align_of;
 
 const NLMSG_ALIGNTO: usize = 0x4;
 const NLMSG_HDRLEN: usize = 0x10;
-
-const NLMSG_DONE: u16 = 3;
-const NLMSG_ERROR: u16 = 2;
 
 pub struct Messages(Vec<Message>);
 

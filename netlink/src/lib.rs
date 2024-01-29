@@ -1,5 +1,6 @@
 pub mod core;
 pub mod handle;
+pub mod netlink;
 pub mod route;
 
 pub fn align_of(len: usize, align_to: usize) -> usize {

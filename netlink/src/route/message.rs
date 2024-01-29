@@ -139,10 +139,10 @@ impl Attribute for RouteAttr {
             for attr in attrs {
                 buf.extend_from_slice(&attr.serialize()?);
             }
-        }
 
-        let len = buf.len();
-        buf[..2].copy_from_slice(&(len as u16).to_ne_bytes());
+            let len = buf.len();
+            buf[..2].copy_from_slice(&(len as u16).to_ne_bytes());
+        }
 
         Ok(buf)
     }
