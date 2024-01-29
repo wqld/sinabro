@@ -58,8 +58,9 @@ Only networking within the same network for containers is supported.
 
 ### TODO
 
+- [x] Provide file-based IPAM
 - [x] eBPF-based masquerading: implement NAT with eBPF for traffic going out of the cluster
-- [ ] Develop a Sinabro-specific netlink library
+- [x] Develop a Sinabro-specific netlink library
 - [ ] Route service traffic without kube-proxy
 - [ ] Enforce network policies with eBPF
 - [ ] Enable inter-host communication across different networks via VXLAN
