@@ -1,11 +1,21 @@
-use std::{env, fs, os::unix};
+use std::{env, fs::File, net::IpAddr, os::fd::AsRawFd};
 
 use async_trait::async_trait;
 use ipnet::IpNet;
 use rand::Rng;
 use serde::Serialize;
 use sinabro_config::Config;
-use tracing::{debug, error, info};
+use sinabro_netlink::{
+    netlink::Netlink,
+    route::{
+        addr::Address,
+        link::{Kind, LinkAttrs},
+        routing::Routing,
+    },
+};
+use tracing::info;
+
+use crate::command::generate_mac_addr;
 
 use super::CniCommand;
 
@@ -15,77 +25,43 @@ pub struct AddCommand;
 impl CniCommand for AddCommand {
     async fn run(&self, cni_config: &Config) -> anyhow::Result<()> {
         let netns = env::var("CNI_NETNS")?;
-        let container_id = env::var("CNI_CONTAINERID")?;
+        let _container_id = env::var("CNI_CONTAINERID")?;
         let cni_if_name = env::var("CNI_IFNAME")?;
         let container_ip = Self::request_container_ip().await?;
         let subnet_mask_size = cni_config.subnet.split('/').last().unwrap();
         let container_addr = format!("{}/{}", container_ip, subnet_mask_size);
-        debug!("container ip: {:?}", container_ip);
 
-        let netns_path = "/var/run/netns";
-        let symlink_netns_path = format!("{}/{}", netns_path, container_id);
-
-        fs::create_dir_all(netns_path)?;
-        unix::fs::symlink(&netns, symlink_netns_path)?;
+        let netns_file = File::open(&netns)?;
+        let netns_fd = netns_file.as_raw_fd();
 
         let unique_veth = Self::generate_veth_suffix();
         let veth_name = format!("veth{}", unique_veth);
         let peer_name = format!("peer{}", unique_veth);
 
-        Self::run_command(
-            "ip",
-            &[
-                "link", "add", &peer_name, "type", "veth", "peer", "name", &veth_name,
-            ],
-        )?;
+        let mut netlink = Netlink::new();
 
-        Self::run_command("ip", &["link", "set", &veth_name, "up"])?;
-        Self::run_command("ip", &["link", "set", &veth_name, "master", "cni0"])?;
+        let cni0 = netlink.link_get(&LinkAttrs::new("cni0"))?;
 
-        Self::run_command("ip", &["link", "set", &peer_name, "netns", &container_id])?;
+        let mut veth_attr = LinkAttrs::new(&veth_name);
+        veth_attr.mtu = 1500;
+        veth_attr.tx_queue_len = 1000;
+        veth_attr.hw_addr = generate_mac_addr()?;
 
-        Self::run_command(
-            "ip",
-            &[
-                "netns",
-                "exec",
-                &container_id,
-                "ip",
-                "link",
-                "set",
-                &peer_name,
-                "name",
-                &cni_if_name,
-            ],
-        )?;
-        Self::run_command(
-            "ip",
-            &[
-                "netns",
-                "exec",
-                &container_id,
-                "ip",
-                "link",
-                "set",
-                &cni_if_name,
-                "up",
-            ],
-        )?;
+        let veth = Kind::Veth {
+            attrs: veth_attr.clone(),
+            peer_name: peer_name.clone(),
+            peer_hw_addr: Some(generate_mac_addr()?),
+            peer_ns: None,
+        };
 
-        Self::run_command(
-            "ip",
-            &[
-                "netns",
-                "exec",
-                &container_id,
-                "ip",
-                "addr",
-                "add",
-                &container_addr,
-                "dev",
-                &cni_if_name,
-            ],
-        )?;
+        netlink.link_add(&veth)?;
+
+        let veth = netlink.link_get(&veth_attr)?;
+        let peer = netlink.link_get(&LinkAttrs::new(&peer_name))?;
+
+        netlink.link_up(&veth)?;
+        netlink.link_set_master(&veth, cni0.attrs().index)?;
+        netlink.link_set_ns(&peer, netns_fd)?;
 
         let subnet = cni_config.subnet.parse::<IpNet>()?;
         let bridge_ip = subnet
@@ -94,24 +70,54 @@ impl CniCommand for AddCommand {
             .map(|ip| ip.to_string())
             .ok_or_else(|| anyhow::anyhow!("failed to get bridge ip"))?;
 
-        Self::run_command(
-            "ip",
-            &[
-                "netns",
-                "exec",
-                &container_id,
-                "ip",
-                "route",
-                "add",
-                "default",
-                "via",
-                &bridge_ip,
-                "dev",
-                &cni_if_name,
-            ],
-        )?;
+        let container_addr_clone = container_addr.clone();
+        let bridge_ip_clone = bridge_ip.clone();
 
-        let mac_addr = Self::get_mac_addr(&container_id)?;
+        let handle = std::thread::spawn(move || -> anyhow::Result<String> {
+            nix::sched::setns(netns_file, nix::sched::CloneFlags::CLONE_NEWNET)?;
+
+            let mut netlink = Netlink::new();
+            let link = netlink.link_get(&LinkAttrs::new(&peer_name))?;
+            netlink.link_set_name(&link, &cni_if_name)?;
+            netlink.link_up(&link)?;
+
+            let container_addr = Address {
+                ip: container_addr_clone.parse::<IpNet>()?,
+                ..Default::default()
+            };
+
+            if let Err(e) = netlink.addr_add(&link, &container_addr) {
+                if e.to_string().contains("File exists") {
+                    info!("eth0 interface already has an ip address");
+                } else {
+                    return Err(e);
+                }
+            }
+
+            let route = Routing {
+                oif_index: link.attrs().index,
+                gw: Some(bridge_ip_clone.parse::<IpAddr>()?),
+                ..Default::default()
+            };
+
+            if let Err(e) = netlink.route_add(&route) {
+                if e.to_string().contains("File exists") {
+                    info!("route already exists");
+                } else {
+                    return Err(e);
+                }
+            }
+
+            Ok(link
+                .attrs()
+                .hw_addr
+                .iter()
+                .map(|byte| format!("{:02x}", byte))
+                .collect::<Vec<String>>()
+                .join(":"))
+        });
+
+        let mac_addr = handle.join().expect("failed to join thread")?;
 
         Self::print_result(&mac_addr, &netns, &container_addr, &bridge_ip);
 
@@ -137,23 +143,6 @@ impl AddCommand {
             .collect()
     }
 
-    fn get_mac_addr(container_id: &str) -> anyhow::Result<String> {
-        let output = std::process::Command::new("ip")
-            .args(["netns", "exec", container_id, "ip", "link", "show", "eth0"])
-            .output()?;
-
-        let output_str = std::str::from_utf8(&output.stdout).unwrap();
-        let mac = output_str
-            .lines()
-            .find(|line| line.contains("ether"))
-            .and_then(|line| line.split_whitespace().nth(1))
-            .unwrap_or("");
-
-        debug!("{}", mac);
-
-        Ok(mac.to_string())
-    }
-
     fn print_result(mac: &str, cni_netns: &str, container_addr: &str, bridge_ip: &str) {
         let add_result = AddResult::new(
             mac.to_string(),
@@ -164,22 +153,6 @@ impl AddCommand {
         let add_result_json = serde_json::to_string(&add_result).unwrap();
 
         println!("{}", add_result_json);
-    }
-
-    fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
-        info!("running command: {} {}", cmd, args.join(" "));
-
-        let out = std::process::Command::new(cmd)
-            .args(args)
-            .output()
-            .expect("failed to run command");
-
-        match out.status.success() {
-            true => {}
-            _ => error!("{}", String::from_utf8_lossy(&out.stderr)),
-        }
-
-        Ok(())
     }
 }
 

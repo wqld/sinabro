@@ -86,7 +86,7 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let bridge = netlink.link_get(bridge.attrs())?;
-    netlink.link_setup(&bridge)?;
+    netlink.link_up(&bridge)?;
 
     let address = Address {
         ip: bridge_ip.as_str().parse::<IpNet>()?,
@@ -103,7 +103,7 @@ async fn main() -> anyhow::Result<()> {
 
     let eth0_attrs = LinkAttrs::new("eth0");
     let eth0 = netlink.link_get(&eth0_attrs)?;
-    netlink.link_setup(&eth0)?;
+    netlink.link_up(&eth0)?;
 
     // setup additional route rule
     node_routes
@@ -117,10 +117,17 @@ async fn main() -> anyhow::Result<()> {
                 ..Default::default()
             };
 
-            netlink.route_add(&route)
+            if let Err(e) = netlink.route_add(&route) {
+                if e.to_string().contains("File exists") {
+                    info!("route already exists");
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            } else {
+                Ok(())
+            }
         })?;
-
-    info!("4");
 
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;

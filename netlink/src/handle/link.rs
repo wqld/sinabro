@@ -82,14 +82,14 @@ impl LinkHandle<'_> {
 
         link_info.add(libc::IFLA_INFO_KIND, link.link_type().as_bytes());
 
-        let opt: Option<RouteAttr> = Option::from(link.kind());
-        if let Some(a) = opt {
-            link_info.add_attribute(Box::new(a));
+        let opt_attr: Option<RouteAttr> = Option::from(link.kind());
+        if let Some(link_attr) = opt_attr {
+            link_info.add_attribute(Box::new(link_attr));
         }
 
         req.add(&link_info.serialize()?);
 
-        let _ = self.request(&mut req, 0)?;
+        self.request(&mut req, 0)?;
 
         Ok(())
     }
@@ -104,7 +104,7 @@ impl LinkHandle<'_> {
 
         req.add(&msg.serialize()?);
 
-        let _ = self.request(&mut req, 0)?;
+        self.request(&mut req, 0)?;
 
         Ok(())
     }
@@ -137,7 +137,7 @@ impl LinkHandle<'_> {
         }
     }
 
-    pub fn setup<T: Link + ?Sized>(&mut self, link: &T) -> Result<()> {
+    pub fn up<T: Link + ?Sized>(&mut self, link: &T) -> Result<()> {
         let mut req = Message::new(libc::RTM_NEWLINK, libc::NLM_F_ACK);
         let base = link.attrs();
 
@@ -148,7 +148,58 @@ impl LinkHandle<'_> {
 
         req.add(&msg.serialize()?);
 
-        let _ = self.request(&mut req, 0)?;
+        self.request(&mut req, 0)?;
+
+        Ok(())
+    }
+
+    pub fn set_master<T: Link + ?Sized>(&mut self, link: &T, master_index: i32) -> Result<()> {
+        let mut req = Message::new(libc::RTM_SETLINK, libc::NLM_F_ACK);
+        let base = link.attrs();
+
+        let mut msg = Box::new(LinkMessage::new(libc::AF_UNSPEC));
+        msg.index = base.index;
+
+        let master_attr = RouteAttr::new(libc::IFLA_MASTER, &master_index.to_ne_bytes());
+
+        req.add(&msg.serialize()?);
+        req.add(&master_attr.serialize()?);
+
+        self.request(&mut req, 0)?;
+
+        Ok(())
+    }
+
+    pub fn set_ns<T: Link + ?Sized>(&mut self, link: &T, ns: i32) -> Result<()> {
+        let mut req = Message::new(libc::RTM_SETLINK, libc::NLM_F_ACK);
+        let base = link.attrs();
+
+        let mut msg = Box::new(LinkMessage::new(libc::AF_UNSPEC));
+        msg.index = base.index;
+
+        let ns_attr = RouteAttr::new(libc::IFLA_NET_NS_FD, &ns.to_ne_bytes());
+
+        req.add(&msg.serialize()?);
+        req.add(&ns_attr.serialize()?);
+
+        self.request(&mut req, 0)?;
+
+        Ok(())
+    }
+
+    pub fn set_name<T: Link + ?Sized>(&mut self, link: &T, name: &str) -> Result<()> {
+        let mut req = Message::new(libc::RTM_SETLINK, libc::NLM_F_ACK);
+        let base = link.attrs();
+
+        let mut msg = Box::new(LinkMessage::new(libc::AF_UNSPEC));
+        msg.index = base.index;
+
+        let name_attr = RouteAttr::new(libc::IFLA_IFNAME, name.as_bytes());
+
+        req.add(&msg.serialize()?);
+        req.add(&name_attr.serialize()?);
+
+        self.request(&mut req, 0)?;
 
         Ok(())
     }

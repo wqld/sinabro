@@ -38,12 +38,36 @@ impl Netlink {
             .add(link, flags)
     }
 
-    pub fn link_setup<T: Link + ?Sized>(&mut self, link: &T) -> Result<()> {
+    pub fn link_up<T: Link + ?Sized>(&mut self, link: &T) -> Result<()> {
         self.sockets
             .entry(libc::NETLINK_ROUTE)
             .or_insert(SocketHandle::new(libc::NETLINK_ROUTE))
             .handle_link()
-            .setup(link)
+            .up(link)
+    }
+
+    pub fn link_set_master<T: Link + ?Sized>(&mut self, link: &T, master_index: i32) -> Result<()> {
+        self.sockets
+            .entry(libc::NETLINK_ROUTE)
+            .or_insert(SocketHandle::new(libc::NETLINK_ROUTE))
+            .handle_link()
+            .set_master(link, master_index)
+    }
+
+    pub fn link_set_ns<T: Link + ?Sized>(&mut self, link: &T, ns: i32) -> Result<()> {
+        self.sockets
+            .entry(libc::NETLINK_ROUTE)
+            .or_insert(SocketHandle::new(libc::NETLINK_ROUTE))
+            .handle_link()
+            .set_ns(link, ns)
+    }
+
+    pub fn link_set_name<T: Link + ?Sized>(&mut self, link: &T, name: &str) -> Result<()> {
+        self.sockets
+            .entry(libc::NETLINK_ROUTE)
+            .or_insert(SocketHandle::new(libc::NETLINK_ROUTE))
+            .handle_link()
+            .set_name(link, name)
     }
 
     pub fn addr_list(
@@ -142,7 +166,7 @@ mod tests {
 
         let link = netlink.link_get(&LinkAttrs::new("foo")).unwrap();
 
-        netlink.link_setup(&link).unwrap();
+        netlink.link_up(&link).unwrap();
 
         let link = netlink.link_get(&LinkAttrs::new("foo")).unwrap();
         assert_ne!(link.attrs().oper_state, 2);

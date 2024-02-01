@@ -169,7 +169,7 @@ mod tests {
 
         let link = link_handle.get(&attr).unwrap();
 
-        link_handle.setup(&link).unwrap();
+        link_handle.up(&link).unwrap();
 
         let route = Routing {
             oif_index: link.attrs().index,
@@ -215,7 +215,7 @@ mod tests {
 
         let link = link_handle.get(&attr).unwrap();
 
-        link_handle.setup(&link).unwrap();
+        link_handle.up(&link).unwrap();
 
         let via = Via::new("2001::1").unwrap();
 
