@@ -1,18 +1,21 @@
 use std::{env, fs::File, net::IpAddr, os::fd::AsRawFd};
 
+use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use ipnet::IpNet;
+use nix::sched::{setns, CloneFlags};
 use rand::Rng;
 use serde::Serialize;
 use sinabro_config::Config;
 use sinabro_netlink::{
     netlink::Netlink,
     route::{
-        addr::Address,
+        addr::AddressBuilder,
         link::{Kind, LinkAttrs},
-        routing::Routing,
+        routing::RoutingBuilder,
     },
 };
+use tokio::task::spawn_blocking;
 use tracing::info;
 
 use crate::command::generate_mac_addr;
@@ -23,9 +26,8 @@ pub struct AddCommand;
 
 #[async_trait]
 impl CniCommand for AddCommand {
-    async fn run(&self, cni_config: &Config) -> anyhow::Result<()> {
+    async fn run(&self, cni_config: &Config) -> Result<()> {
         let netns = env::var("CNI_NETNS")?;
-        let _container_id = env::var("CNI_CONTAINERID")?;
         let cni_if_name = env::var("CNI_IFNAME")?;
         let container_ip = Self::request_container_ip().await?;
         let subnet_mask_size = cni_config.subnet.split('/').last().unwrap();
@@ -34,9 +36,9 @@ impl CniCommand for AddCommand {
         let netns_file = File::open(&netns)?;
         let netns_fd = netns_file.as_raw_fd();
 
-        let unique_veth = Self::generate_veth_suffix();
-        let veth_name = format!("veth{}", unique_veth);
-        let peer_name = format!("peer{}", unique_veth);
+        let veth_suffix = Self::generate_veth_suffix();
+        let veth_name = format!("veth{}", veth_suffix);
+        let peer_name = format!("peer{}", veth_suffix);
 
         let mut netlink = Netlink::new();
 
@@ -68,23 +70,22 @@ impl CniCommand for AddCommand {
             .hosts()
             .next()
             .map(|ip| ip.to_string())
-            .ok_or_else(|| anyhow::anyhow!("failed to get bridge ip"))?;
+            .ok_or_else(|| anyhow!("failed to get bridge ip"))?;
 
         let container_addr_clone = container_addr.clone();
         let bridge_ip_clone = bridge_ip.clone();
 
-        let handle = std::thread::spawn(move || -> anyhow::Result<String> {
-            nix::sched::setns(netns_file, nix::sched::CloneFlags::CLONE_NEWNET)?;
+        let mac_addr = spawn_blocking(move || -> Result<String> {
+            setns(netns_file, CloneFlags::CLONE_NEWNET)?;
 
             let mut netlink = Netlink::new();
             let link = netlink.link_get(&LinkAttrs::new(&peer_name))?;
             netlink.link_set_name(&link, &cni_if_name)?;
             netlink.link_up(&link)?;
 
-            let container_addr = Address {
-                ip: container_addr_clone.parse::<IpNet>()?,
-                ..Default::default()
-            };
+            let container_addr = AddressBuilder::default()
+                .ip(container_addr_clone.parse::<IpNet>()?)
+                .build()?;
 
             if let Err(e) = netlink.addr_add(&link, &container_addr) {
                 if e.to_string().contains("File exists") {
@@ -94,11 +95,10 @@ impl CniCommand for AddCommand {
                 }
             }
 
-            let route = Routing {
-                oif_index: link.attrs().index,
-                gw: Some(bridge_ip_clone.parse::<IpAddr>()?),
-                ..Default::default()
-            };
+            let route = RoutingBuilder::default()
+                .oif_index(link.attrs().index)
+                .gw(Some(bridge_ip_clone.parse::<IpAddr>()?))
+                .build()?;
 
             if let Err(e) = netlink.route_add(&route) {
                 if e.to_string().contains("File exists") {
@@ -115,18 +115,16 @@ impl CniCommand for AddCommand {
                 .map(|byte| format!("{:02x}", byte))
                 .collect::<Vec<String>>()
                 .join(":"))
-        });
-
-        let mac_addr = handle.join().expect("failed to join thread")?;
+        })
+        .await??;
 
         Self::print_result(&mac_addr, &netns, &container_addr, &bridge_ip);
-
         Ok(())
     }
 }
 
 impl AddCommand {
-    async fn request_container_ip() -> anyhow::Result<String> {
+    async fn request_container_ip() -> Result<String> {
         let res = reqwest::get("http://localhost:3000/ipam/ip").await?;
         Ok(res.text().await?)
     }

@@ -12,9 +12,9 @@ use clap::Parser;
 use ipnet::IpNet;
 use log::{debug, info};
 use sinabro_netlink::netlink::Netlink;
-use sinabro_netlink::route::addr::Address;
+use sinabro_netlink::route::addr::AddressBuilder;
 use sinabro_netlink::route::link::{Kind, Link, LinkAttrs};
-use sinabro_netlink::route::routing::{Routing, Via};
+use sinabro_netlink::route::routing::{RoutingBuilder, Via};
 use tokio::sync::Notify;
 use tracing::Level;
 
@@ -88,10 +88,9 @@ async fn main() -> anyhow::Result<()> {
     let bridge = netlink.link_get(bridge.attrs())?;
     netlink.link_up(&bridge)?;
 
-    let address = Address {
-        ip: bridge_ip.as_str().parse::<IpNet>()?,
-        ..Default::default()
-    };
+    let address = AddressBuilder::default()
+        .ip(bridge_ip.as_str().parse::<IpNet>()?)
+        .build()?;
 
     if let Err(e) = netlink.addr_add(&bridge, &address) {
         if e.to_string().contains("File exists") {
@@ -110,12 +109,11 @@ async fn main() -> anyhow::Result<()> {
         .iter()
         .filter(|node_route| node_route.ip != host_ip)
         .try_for_each(|node_route| {
-            let route = Routing {
-                oif_index: eth0.attrs().index,
-                dst: Some(node_route.pod_cidr.parse().unwrap()),
-                via: Some(Via::new(&node_route.ip).unwrap()),
-                ..Default::default()
-            };
+            let route = RoutingBuilder::default()
+                .oif_index(eth0.attrs().index)
+                .dst(Some(node_route.pod_cidr.parse().unwrap()))
+                .via(Some(Via::new(&node_route.ip).unwrap()))
+                .build()?;
 
             if let Err(e) = netlink.route_add(&route) {
                 if e.to_string().contains("File exists") {

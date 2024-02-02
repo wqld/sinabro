@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 
 use anyhow::Result;
+use derive_builder::Builder;
 use ipnet::IpNet;
 
 use super::{
@@ -37,7 +38,8 @@ impl From<u16> for AddrFamily {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Builder, Debug)]
+#[builder(default)]
 pub struct Address {
     pub index: i32,
     pub ip: IpNet,
@@ -89,6 +91,12 @@ mod tests {
     use crate::route::message::{Payload, RouteAttr, RouteAttrHeader};
 
     use super::*;
+
+    #[test]
+    fn test_address_builder() {
+        let address = AddressBuilder::default().build().unwrap();
+        assert_eq!(address.index, 0);
+    }
 
     #[test]
     fn test_update_address_ipv4() {

@@ -128,7 +128,7 @@ impl From<&[u8]> for Kind {
     }
 }
 
-pub trait Link {
+pub trait Link: Send {
     fn link_type(&self) -> &str;
     fn attrs(&self) -> &LinkAttrs;
     fn attrs_mut(&mut self) -> &mut LinkAttrs;

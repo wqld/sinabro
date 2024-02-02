@@ -1,8 +1,16 @@
-use std::env;
+use std::{env, fs::File};
 
+use anyhow::Result;
 use async_trait::async_trait;
+use nix::sched::{setns, CloneFlags};
+use reqwest::Client;
 use sinabro_config::Config;
-use tracing::debug;
+use sinabro_netlink::{
+    netlink::Netlink,
+    route::{addr::AddrFamily, link::LinkAttrs},
+};
+use tokio::task::spawn_blocking;
+use tracing::{debug, info};
 
 use super::CniCommand;
 
@@ -10,26 +18,51 @@ pub struct DeleteCommand;
 
 #[async_trait]
 impl CniCommand for DeleteCommand {
-    async fn run(&self, _cni_config: &Config) -> anyhow::Result<()> {
-        let container_id = env::var("CNI_CONTAINERID")?;
-        let output = std::process::Command::new("ip")
-            .args(["netns", "exec", &container_id, "ip", "addr", "show", "eth0"])
-            .output()?;
+    async fn run(&self, _cni_config: &Config) -> Result<()> {
+        let netns = env::var("CNI_NETNS")?;
+        let netns_file = File::open(&netns)?;
+        let cni_if_name = env::var("CNI_IFNAME")?;
 
-        let output_str = std::str::from_utf8(&output.stdout).unwrap();
-        let container_ip = output_str
-            .lines()
-            .find(|line| line.contains("inet"))
-            .and_then(|line| line.split_whitespace().nth(1))
-            .map(|ip| ip.split('/').next().unwrap())
-            .unwrap_or("");
+        let client = Client::new();
 
-        debug!("(DELETE) container ip: {}", container_ip);
+        let container_ip = spawn_blocking(move || -> Result<Option<String>> {
+            setns(netns_file, CloneFlags::CLONE_NEWNET)?;
 
-        reqwest::Client::new()
-            .put(format!("http://localhost:3000/ipam/ip/{}", container_ip))
-            .send()
-            .await?;
+            let mut netlink = Netlink::new();
+
+            let link = match netlink.link_get(&LinkAttrs::new(&cni_if_name)) {
+                Ok(link) => link,
+                Err(_) => {
+                    info!("(DELETE) link not found");
+                    return Ok(None);
+                }
+            };
+
+            let addr_list = match netlink.addr_list(&link, AddrFamily::V4) {
+                Ok(addr_list) => addr_list,
+                Err(_) => {
+                    info!("(DELETE) addr not found");
+                    return Ok(None);
+                }
+            };
+
+            let container_ip = addr_list
+                .first()
+                .map(|addr| addr.ip.addr().to_string())
+                .unwrap_or_default();
+
+            Ok(Some(container_ip.to_owned()))
+        })
+        .await??;
+
+        if let Some(ip) = container_ip {
+            debug!("(DELETE) container ip: {}", ip);
+
+            client
+                .put(format!("http://localhost:3000/ipam/ip/{}", ip))
+                .send()
+                .await?;
+        }
 
         Ok(())
     }

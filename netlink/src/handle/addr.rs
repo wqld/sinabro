@@ -141,7 +141,10 @@ impl AddrHandle<'_> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        route::{addr::Address, link::LinkAttrs},
+        route::{
+            addr::{Address, AddressBuilder},
+            link::LinkAttrs,
+        },
         test_setup,
     };
 
@@ -156,10 +159,7 @@ mod tests {
         let link = link_handle.get(&attr).unwrap();
 
         let address = "127.0.0.2/24".parse().unwrap();
-        let addr = Address {
-            ip: address,
-            ..Default::default()
-        };
+        let addr = AddressBuilder::default().ip(address).build().unwrap();
 
         let proto = libc::RTM_NEWADDR;
         let flags = libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK;

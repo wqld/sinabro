@@ -1,6 +1,7 @@
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
 use anyhow::Result;
+use derive_builder::Builder;
 use ipnet::IpNet;
 
 use super::{
@@ -16,7 +17,8 @@ pub enum RtCmd {
     Delete,
 }
 
-#[derive(Default)]
+#[derive(Default, Builder)]
+#[builder(default)]
 pub struct Routing {
     pub oif_index: i32,
     pub iif_index: i32,
@@ -75,6 +77,7 @@ impl From<&[u8]> for Routing {
     }
 }
 
+#[derive(Clone)]
 pub struct Via {
     pub family: u16,
     pub addr: IpAddr,
