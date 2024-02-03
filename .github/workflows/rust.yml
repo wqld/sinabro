@@ -43,8 +43,9 @@ jobs:
       - name: Setup Rust toolchain and cache
         uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
-          toolchain: stable, nightly
           components: rustfmt, clippy
+      - run: rustup toolchain install nightly --component rust-src && cargo install bpf-linker
       - run: cargo fmt --all -- --check
+      - run: cargo xtask build-ebpf
       - run: cargo clippy --all --all-targets --all-features -- -D warnings
       - run: cargo test --all --lib --bins --tests --examples --all-features
