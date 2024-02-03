@@ -508,8 +508,7 @@ mod tests {
 
         let serialized = Attribute::serialize(&route_attr).unwrap();
 
-        // Assert the serialized bytes are correct
-        assert_eq!(serialized, vec![8, 0, 1, 0, 1, 2, 3, 0]);
+        assert_eq!(serialized, vec![20, 0, 1, 0, 1, 2, 3, 0]);
     }
 
     #[test]

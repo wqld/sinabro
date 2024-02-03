@@ -37,9 +37,9 @@ tracing = "0.1"
 
 [dev-dependencies]
 futures = { version = "0.3.17" }
-http = "1.0"
+http = "0.2"
 http-body-util = "0.1.0"
-hyper = "1.1"
+hyper = "0.14"
 reqwest = { version = "0.11", features = ["json"] }
 tempfile = "3"
 tower = { version = "0.4", features = ["util"] }

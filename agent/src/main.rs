@@ -31,7 +31,6 @@ async fn main() -> anyhow::Result<()> {
     let opt = Opt::parse();
 
     sinabro_config::setup_tracing_to_stdout(Level::DEBUG);
-    info!("Hello, world!");
 
     let context = Context::new().await?;
 

@@ -141,10 +141,7 @@ impl AddrHandle<'_> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        route::{
-            addr::{Address, AddressBuilder},
-            link::LinkAttrs,
-        },
+        route::{addr::AddressBuilder, link::LinkAttrs},
         test_setup,
     };
 

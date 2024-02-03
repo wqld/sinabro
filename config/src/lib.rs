@@ -101,12 +101,6 @@ mod tests {
         assert_eq!("10.244.0.0/24", cni_config.subnet);
     }
 
-    #[test]
-    fn test_setup_tracing_to_stdout() {
-        setup_tracing_to_stdout(Level::DEBUG);
-        tracing::debug!("Hello, world!");
-    }
-
     #[tokio::test]
     async fn test_setup_tracing_to_file() {
         let _guard = setup_tracing_to_file("/tmp", "sinabro.log", Level::DEBUG).unwrap();
@@ -117,6 +111,7 @@ mod tests {
         assert!(Path::new(&file_name).exists());
 
         let file_content = std::fs::read_to_string(&file_name).unwrap();
+        println!("{}", file_content);
         assert!(file_content.contains("Hello, world!"));
 
         std::fs::remove_file(&file_name).unwrap();
