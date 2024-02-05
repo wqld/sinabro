@@ -14,15 +14,15 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: bash-master
+  name: curl-master
 spec:
   containers:
-    - name: ubuntu
-      image: nicolaka/netshoot
+    - name: curl
+      image: curlimages/curl
       command:
         - "sh"
         - "-c"
-        - "sleep 10000"
+        - "sleep 1000"
   nodeSelector:
     kubernetes.io/hostname: kind-control-plane
 ---
@@ -42,14 +42,14 @@ spec:
 apiVersion: v1
 kind: Pod
 metadata:
-  name: bash-worker
+  name: curl-worker
 spec:
   containers:
-    - name: ubuntu
-      image: nicolaka/netshoot
+    - name: curl
+      image: curlimages/curl
       command:
         - "sh"
         - "-c"
-        - "sleep 10000"
+        - "sleep 1000"
   nodeSelector:
     kubernetes.io/hostname: kind-worker

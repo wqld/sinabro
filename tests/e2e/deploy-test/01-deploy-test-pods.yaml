@@ -1,0 +1,8 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+apply:
+- test-pods.yaml
+assert:
+- test-pods-assert.yaml
+commands:
+- command: kubectl taint nodes kind-control-plane node-role.kubernetes.io/control-plane-
