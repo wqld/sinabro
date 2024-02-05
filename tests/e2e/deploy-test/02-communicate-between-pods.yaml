@@ -1,0 +1,9 @@
+apiVersion: kuttl.dev/v1beta1
+kind: TestStep
+commands:
+- script: POD_IP=$(kubectl get pod nginx-master -n $NAMESPACE -o jsonpath='{.status.podIP}') && kubectl exec -n $NAMESPACE curl-worker -c curl -- curl $POD_IP
+- script: POD_IP=$(kubectl get pod nginx-worker -n $NAMESPACE -o jsonpath='{.status.podIP}') && kubectl exec -n $NAMESPACE curl-worker -c curl -- curl $POD_IP
+- script: POD_IP=$(kubectl get pod nginx-master -n $NAMESPACE -o jsonpath='{.status.podIP}') && kubectl exec -n $NAMESPACE curl-master -c curl -- curl $POD_IP
+- script: POD_IP=$(kubectl get pod nginx-worker -n $NAMESPACE -o jsonpath='{.status.podIP}') && kubectl exec -n $NAMESPACE curl-master -c curl -- curl $POD_IP
+- command: kubectl exec -n $NAMESPACE curl-worker -c curl -- curl google.com
+- command: kubectl exec -n $NAMESPACE curl-master -c curl -- curl google.com
