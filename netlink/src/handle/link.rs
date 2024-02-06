@@ -260,8 +260,8 @@ mod tests {
             attrs: attr.clone(),
             hello_time: None,
             ageing_time: Some(30102),
-            multicast_snooping: None,
             vlan_filtering: Some(true),
+            multicast_snooping: None,
         };
 
         link_handle
@@ -280,13 +280,13 @@ mod tests {
                 attrs: _,
                 hello_time,
                 ageing_time,
-                multicast_snooping,
                 vlan_filtering,
+                multicast_snooping,
             } => {
                 assert_eq!(hello_time.unwrap(), 200);
                 assert_eq!(ageing_time.unwrap(), 30102);
-                assert!(multicast_snooping.unwrap());
                 assert!(vlan_filtering.unwrap());
+                assert!(multicast_snooping.unwrap());
             }
             _ => panic!("wrong link type"),
         }

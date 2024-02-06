@@ -8,9 +8,20 @@ use anyhow::Result;
 use bincode::deserialize;
 use serde::{Deserialize, Serialize};
 
-use crate::{align_of, handle::zero_terminated};
+use crate::{
+    align_of,
+    handle::zero_terminated,
+    route::{
+        IFLA_VXLAN_AGEING, IFLA_VXLAN_FLOWBASED, IFLA_VXLAN_GBP, IFLA_VXLAN_GROUP,
+        IFLA_VXLAN_GROUP6, IFLA_VXLAN_ID, IFLA_VXLAN_L2MISS, IFLA_VXLAN_L3MISS,
+        IFLA_VXLAN_LEARNING, IFLA_VXLAN_LIMIT, IFLA_VXLAN_LINK, IFLA_VXLAN_LOCAL,
+        IFLA_VXLAN_LOCAL6, IFLA_VXLAN_PORT, IFLA_VXLAN_PORT_RANGE, IFLA_VXLAN_PROXY,
+        IFLA_VXLAN_RSC, IFLA_VXLAN_TOS, IFLA_VXLAN_TTL, IFLA_VXLAN_UDP_CSUM,
+        IFLA_VXLAN_UDP_ZERO_CSUM6_RX, IFLA_VXLAN_UDP_ZERO_CSUM6_TX,
+    },
+};
 
-use super::link::{Kind, LinkAttrs, Namespace};
+use super::link::{Kind, LinkAttrs, Namespace, VxlanAttrs};
 
 const RTA_ALIGNTO: usize = 0x4;
 const RT_ATTR_HDR_SIZE: usize = 0x4;
@@ -48,13 +59,35 @@ impl<'a> Deref for RouteAttrMap<'a> {
 }
 
 impl RouteAttrMap<'_> {
+    pub fn get_bool(&self, key: &u16) -> Option<bool> {
+        self.get(key).map(|v| v[0] == 1)
+    }
+
+    pub fn get_u8(&self, key: &u16) -> Option<u8> {
+        self.get(key).map(|v| v[0])
+    }
+
+    pub fn get_u16(&self, key: &u16) -> Option<u16> {
+        self.get(key)
+            .map(|v| u16::from_ne_bytes(v[..2].try_into().unwrap_or([0; 2])))
+    }
+
+    pub fn get_u16_tuple(&self, key: &u16) -> Option<(u16, u16)> {
+        self.get(key).map(|v| {
+            (
+                u16::from_ne_bytes(v[..2].try_into().unwrap_or([0; 2])),
+                u16::from_ne_bytes(v[2..].try_into().unwrap_or([0; 2])),
+            )
+        })
+    }
+
     pub fn get_u32(&self, key: &u16) -> Option<u32> {
         self.get(key)
             .map(|v| u32::from_ne_bytes(v[..4].try_into().unwrap_or([0; 4])))
     }
 
-    pub fn get_bool(&self, key: &u16) -> Option<bool> {
-        self.get(key).map(|v| v[0] == 1)
+    pub fn get_vec(&self, key: &u16) -> Option<Vec<u8>> {
+        self.get(key).map(|v| v.to_vec())
     }
 }
 
@@ -173,15 +206,19 @@ impl From<&Kind> for Option<RouteAttr> {
                 attrs: _,
                 hello_time: ht,
                 ageing_time: at,
-                multicast_snooping: ms,
                 vlan_filtering: vf,
-            } => RouteAttr::from_bridge(ht, at, ms, vf),
+                multicast_snooping: ms,
+            } => RouteAttr::from_bridge(ht, at, vf, ms),
             Kind::Veth {
                 attrs: base,
                 peer_name,
                 peer_hw_addr,
                 peer_ns,
             } => RouteAttr::from_veth(base, peer_name, peer_hw_addr, peer_ns),
+            Kind::Vxlan {
+                attrs: _,
+                vxlan_attrs,
+            } => RouteAttr::from_vxlan(vxlan_attrs),
             _ => None,
         }
     }
@@ -195,15 +232,15 @@ impl RouteAttr {
     pub fn from_bridge(
         ht: &Option<u32>,
         at: &Option<u32>,
-        ms: &Option<bool>,
         vf: &Option<bool>,
+        ms: &Option<bool>,
     ) -> Option<Self> {
         let sub_attrs = {
             let candidates = [
                 ht.map(|v| RouteAttr::new(BR_HELLO_TIME, &v.to_ne_bytes())),
                 at.map(|v| RouteAttr::new(BR_AGEING_TIME, &v.to_ne_bytes())),
-                ms.map(|v| RouteAttr::new(BR_MCAST_SNOOPING, &(v as u8).to_ne_bytes())),
                 vf.map(|v| RouteAttr::new(BR_VLAN_FILTERING, &(v as u8).to_ne_bytes())),
+                ms.map(|v| RouteAttr::new(BR_MCAST_SNOOPING, &(v as u8).to_ne_bytes())),
             ]
             .into_iter()
             .filter_map(|opt| opt.map(|ra| Box::new(ra) as Box<dyn Attribute>))
@@ -256,6 +293,98 @@ impl RouteAttr {
         sub_attrs.push(Box::new(peer_info) as Box<dyn Attribute>);
 
         Some(Self::with_attrs(libc::IFLA_INFO_DATA, &[], Some(sub_attrs)))
+    }
+
+    pub fn from_vxlan(vxlan_attrs: &VxlanAttrs) -> Option<Self> {
+        let mut attrs = Vec::<Box<dyn Attribute>>::new();
+        let mut id = vxlan_attrs.id;
+
+        let mut add_attr = |cond: bool, rta_type: u16, payload: &[u8]| {
+            if cond {
+                attrs.push(Box::new(RouteAttr::new(rta_type, payload)));
+            }
+        };
+
+        if vxlan_attrs.flow_based {
+            id = 0;
+        }
+
+        add_attr(true, IFLA_VXLAN_ID, &id.to_ne_bytes());
+        add_attr(
+            vxlan_attrs.flow_based,
+            IFLA_VXLAN_FLOWBASED,
+            &[vxlan_attrs.flow_based as u8],
+        );
+
+        if let Some(vtep_index) = vxlan_attrs.vtep_index {
+            add_attr(true, IFLA_VXLAN_LINK, &vtep_index.to_ne_bytes());
+        }
+
+        if let Some(group) = &vxlan_attrs.group {
+            match group.len() {
+                4 => add_attr(true, IFLA_VXLAN_GROUP, group.as_slice()),
+                16 => add_attr(true, IFLA_VXLAN_GROUP6, group.as_slice()),
+                _ => (),
+            }
+        }
+
+        if let Some(src_addr) = &vxlan_attrs.src_addr {
+            match src_addr.len() {
+                4 => add_attr(true, IFLA_VXLAN_LOCAL, src_addr.as_slice()),
+                16 => add_attr(true, IFLA_VXLAN_LOCAL6, src_addr.as_slice()),
+                _ => (),
+            }
+        }
+
+        add_attr(true, IFLA_VXLAN_TTL, &[vxlan_attrs.ttl]);
+        add_attr(true, IFLA_VXLAN_TOS, &[vxlan_attrs.tos]);
+        add_attr(true, IFLA_VXLAN_LEARNING, &[vxlan_attrs.learning as u8]);
+        add_attr(true, IFLA_VXLAN_PROXY, &[vxlan_attrs.proxy as u8]);
+        add_attr(true, IFLA_VXLAN_RSC, &[vxlan_attrs.rsc as u8]);
+        add_attr(true, IFLA_VXLAN_L2MISS, &[vxlan_attrs.l2miss as u8]);
+        add_attr(true, IFLA_VXLAN_L3MISS, &[vxlan_attrs.l3miss as u8]);
+        add_attr(
+            true,
+            IFLA_VXLAN_UDP_ZERO_CSUM6_TX,
+            &[vxlan_attrs.udp_zero_csum6_tx as u8],
+        );
+        add_attr(
+            true,
+            IFLA_VXLAN_UDP_ZERO_CSUM6_RX,
+            &[vxlan_attrs.udp_zero_csum6_rx as u8],
+        );
+
+        add_attr(
+            vxlan_attrs.udp_csum,
+            IFLA_VXLAN_UDP_CSUM,
+            &[vxlan_attrs.udp_csum as u8],
+        );
+        add_attr(vxlan_attrs.gbp, IFLA_VXLAN_GBP, &[]);
+
+        let ageing = match vxlan_attrs.ageing {
+            Some(ageing) if ageing > 0 => ageing.to_ne_bytes(),
+            _ => [0; 4],
+        };
+        add_attr(true, IFLA_VXLAN_AGEING, &ageing);
+
+        if let Some(limit) = vxlan_attrs.limit {
+            add_attr(limit > 0, IFLA_VXLAN_LIMIT, &limit.to_ne_bytes());
+        }
+
+        if let Some(port) = vxlan_attrs.port {
+            add_attr(port > 0, IFLA_VXLAN_PORT, &port.to_ne_bytes());
+        }
+
+        if let Some((low, high)) = vxlan_attrs.port_range {
+            if low > 0 || high > 0 {
+                let mut buf = [0; 4];
+                buf[..2].copy_from_slice(&low.to_ne_bytes());
+                buf[2..].copy_from_slice(&high.to_ne_bytes());
+                add_attr(true, IFLA_VXLAN_PORT_RANGE, &buf);
+            }
+        }
+
+        Some(Self::with_attrs(libc::IFLA_INFO_DATA, &[], Some(attrs)))
     }
 
     fn with_attrs(rta_type: u16, payload: &[u8], attrs: Option<Vec<Box<dyn Attribute>>>) -> Self {
