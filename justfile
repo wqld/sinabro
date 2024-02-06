@@ -17,5 +17,10 @@ deploy-test-pods: deploy-agent
     kubectl taint nodes kind-control-plane node-role.kubernetes.io/control-plane-
     kubectl apply -f tests/e2e/deploy-test/test-pods.yaml
 
+cargo-check:
+    cargo fmt --all -- --check
+    cargo clippy --all --all-targets --all-features -- -D warnings
+    cargo test --all --lib --bins --tests --examples --all-features
+
 e2e-test: build-image
     kubectl kuttl test --config ./tests/kuttl-test.yaml

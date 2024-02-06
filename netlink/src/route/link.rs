@@ -1,4 +1,11 @@
-use super::message::{Attribute, LinkMessage, RouteAttrMap, RouteAttrs};
+use super::{
+    message::{Attribute, LinkMessage, RouteAttrMap, RouteAttrs},
+    IFLA_VXLAN_AGEING, IFLA_VXLAN_FLOWBASED, IFLA_VXLAN_GBP, IFLA_VXLAN_GROUP, IFLA_VXLAN_GROUP6,
+    IFLA_VXLAN_ID, IFLA_VXLAN_L2MISS, IFLA_VXLAN_L3MISS, IFLA_VXLAN_LEARNING, IFLA_VXLAN_LIMIT,
+    IFLA_VXLAN_LINK, IFLA_VXLAN_LOCAL, IFLA_VXLAN_LOCAL6, IFLA_VXLAN_PORT, IFLA_VXLAN_PORT_RANGE,
+    IFLA_VXLAN_PROXY, IFLA_VXLAN_RSC, IFLA_VXLAN_TOS, IFLA_VXLAN_TTL, IFLA_VXLAN_UDP_CSUM,
+    IFLA_VXLAN_UDP_ZERO_CSUM6_RX, IFLA_VXLAN_UDP_ZERO_CSUM6_TX,
+};
 
 pub const IFLA_BR_HELLO_TIME: u16 = 0x2;
 pub const IFLA_BR_AGEING_TIME: u16 = 0x4;
@@ -10,6 +17,29 @@ pub enum Namespace {
     Fd(i32),
 }
 
+pub struct VxlanAttrs {
+    pub id: u32,
+    pub group: Option<Vec<u8>>,
+    pub vtep_index: Option<u32>,
+    pub src_addr: Option<Vec<u8>>,
+    pub ttl: u8,
+    pub tos: u8,
+    pub learning: bool,
+    pub ageing: Option<u32>,
+    pub limit: Option<u32>,
+    pub port_range: Option<(u16, u16)>,
+    pub proxy: bool,
+    pub rsc: bool,
+    pub l2miss: bool,
+    pub l3miss: bool,
+    pub port: Option<u16>,
+    pub udp_csum: bool,
+    pub udp_zero_csum6_tx: bool,
+    pub udp_zero_csum6_rx: bool,
+    pub gbp: bool,
+    pub flow_based: bool,
+}
+
 pub enum Kind {
     Device(LinkAttrs),
     Dummy(LinkAttrs),
@@ -17,14 +47,18 @@ pub enum Kind {
         attrs: LinkAttrs,
         hello_time: Option<u32>,
         ageing_time: Option<u32>,
-        multicast_snooping: Option<bool>,
         vlan_filtering: Option<bool>,
+        multicast_snooping: Option<bool>,
     },
     Veth {
         attrs: LinkAttrs,
         peer_name: String,
         peer_hw_addr: Option<Vec<u8>>,
         peer_ns: Option<Namespace>,
+    },
+    Vxlan {
+        attrs: LinkAttrs,
+        vxlan_attrs: VxlanAttrs,
     },
 }
 
@@ -105,16 +139,14 @@ impl From<&[u8]> for Kind {
         }
 
         match &base.link_type[..] {
-            "device" => Kind::Device(base),
-            "dummy" => Kind::Dummy(base),
             "bridge" => {
                 let map = RouteAttrMap::from(&data);
                 Kind::Bridge {
                     attrs: base,
                     hello_time: map.get_u32(&IFLA_BR_HELLO_TIME),
                     ageing_time: map.get_u32(&IFLA_BR_AGEING_TIME),
-                    multicast_snooping: map.get_bool(&IFLA_BR_MCAST_SNOOPING),
                     vlan_filtering: map.get_bool(&IFLA_BR_VLAN_FILTERING),
+                    multicast_snooping: map.get_bool(&IFLA_BR_MCAST_SNOOPING),
                 }
             }
             "veth" => Kind::Veth {
@@ -123,6 +155,43 @@ impl From<&[u8]> for Kind {
                 peer_hw_addr: None,
                 peer_ns: None,
             },
+            "vxlan" => {
+                let map = RouteAttrMap::from(&data);
+                Kind::Vxlan {
+                    attrs: base,
+                    vxlan_attrs: VxlanAttrs {
+                        id: map.get_u32(&IFLA_VXLAN_ID).unwrap(),
+                        group: map
+                            .get_vec(&IFLA_VXLAN_GROUP)
+                            .or(map.get_vec(&IFLA_VXLAN_GROUP6)),
+                        vtep_index: map.get_u32(&IFLA_VXLAN_LINK),
+                        src_addr: map
+                            .get_vec(&IFLA_VXLAN_LOCAL)
+                            .or(map.get_vec(&IFLA_VXLAN_LOCAL6)),
+                        ttl: map.get_u8(&IFLA_VXLAN_TTL).unwrap_or_default(),
+                        tos: map.get_u8(&IFLA_VXLAN_TOS).unwrap_or_default(),
+                        learning: map.get_bool(&IFLA_VXLAN_LEARNING).unwrap(),
+                        ageing: map.get_u32(&IFLA_VXLAN_AGEING),
+                        limit: map.get_u32(&IFLA_VXLAN_LIMIT),
+                        port_range: map.get_u16_tuple(&IFLA_VXLAN_PORT_RANGE),
+                        proxy: map.get_bool(&IFLA_VXLAN_PROXY).unwrap_or_default(),
+                        rsc: map.get_bool(&IFLA_VXLAN_RSC).unwrap_or_default(),
+                        l2miss: map.get_bool(&IFLA_VXLAN_L2MISS).unwrap_or_default(),
+                        l3miss: map.get_bool(&IFLA_VXLAN_L3MISS).unwrap_or_default(),
+                        port: map.get_u16(&IFLA_VXLAN_PORT),
+                        udp_csum: map.get_bool(&IFLA_VXLAN_UDP_CSUM).unwrap_or_default(),
+                        udp_zero_csum6_tx: map
+                            .get_bool(&IFLA_VXLAN_UDP_ZERO_CSUM6_TX)
+                            .unwrap_or_default(),
+                        udp_zero_csum6_rx: map
+                            .get_bool(&IFLA_VXLAN_UDP_ZERO_CSUM6_RX)
+                            .unwrap_or_default(),
+                        gbp: map.get_bool(&IFLA_VXLAN_GBP).unwrap_or_default(),
+                        flow_based: map.get_bool(&IFLA_VXLAN_FLOWBASED).unwrap_or_default(),
+                    },
+                }
+            }
+            "dummy" => Kind::Dummy(base),
             _ => Kind::Device(base),
         }
     }
@@ -204,6 +273,7 @@ impl Link for Kind {
             Kind::Dummy(_) => "dummy",
             Kind::Bridge { .. } => "bridge",
             Kind::Veth { .. } => "veth",
+            Kind::Vxlan { .. } => "vxlan",
         }
     }
 
@@ -213,6 +283,7 @@ impl Link for Kind {
             Kind::Dummy(attrs) => attrs,
             Kind::Bridge { attrs, .. } => attrs,
             Kind::Veth { attrs, .. } => attrs,
+            Kind::Vxlan { attrs, .. } => attrs,
         }
     }
 
@@ -222,6 +293,7 @@ impl Link for Kind {
             Kind::Dummy(attrs) => attrs,
             Kind::Bridge { attrs, .. } => attrs,
             Kind::Veth { attrs, .. } => attrs,
+            Kind::Vxlan { attrs, .. } => attrs,
         }
     }
 
@@ -236,8 +308,8 @@ impl Kind {
             attrs: LinkAttrs::new(name),
             hello_time: None,
             ageing_time: None,
-            multicast_snooping: None,
             vlan_filtering: None,
+            multicast_snooping: None,
         }
     }
 }
@@ -382,13 +454,13 @@ mod tests {
                 attrs: _,
                 hello_time,
                 ageing_time,
-                multicast_snooping,
                 vlan_filtering,
+                multicast_snooping,
             } => {
                 assert_eq!(hello_time.unwrap(), 200);
                 assert_eq!(ageing_time.unwrap(), 30000);
-                assert!(multicast_snooping.unwrap());
                 assert!(!vlan_filtering.unwrap());
+                assert!(multicast_snooping.unwrap());
             }
             _ => panic!("Expected bridge link"),
         }
