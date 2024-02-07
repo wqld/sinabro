@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
+use sysctl::Sysctl;
 
 use crate::{
     handle::sock_handle::SocketHandle,
@@ -19,6 +20,46 @@ pub struct Netlink {
 impl Netlink {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    pub fn ensure_link<T: Link + ?Sized>(&mut self, link: &T) -> Result<Box<dyn Link>> {
+        let link = self.link_get(link.attrs()).or_else(|_| {
+            self.link_add(link)?;
+            self.link_get(link.attrs())
+        })?;
+
+        self.enable_forwarding(&link, true, true)?;
+        Ok(link)
+    }
+
+    pub fn enable_forwarding<T: Link + ?Sized>(
+        &mut self,
+        link: &T,
+        enable_ipv6: bool,
+        enable_ipv4: bool,
+    ) -> Result<()> {
+        self.link_up(link)?;
+
+        let if_name = &link.attrs().name;
+        let mut sys_settings = Vec::new();
+
+        if enable_ipv6 {
+            sys_settings.push((format!("net.ipv6.conf.{}.forwarding", if_name), "1"));
+        }
+
+        if enable_ipv4 {
+            sys_settings.push((format!("net.ipv4.conf.{}.forwarding", if_name), "1"));
+            sys_settings.push((format!("net.ipv4.conf.{}.rp_filter", if_name), "0"));
+            sys_settings.push((format!("net.ipv4.conf.{}.accept_local", if_name), "1"));
+            sys_settings.push((format!("net.ipv4.conf.{}.send_redirects", if_name), "0"));
+        }
+
+        for setting in sys_settings {
+            let ctl = sysctl::Ctl::new(&setting.0)?;
+            ctl.set_value_string(setting.1)?;
+        }
+
+        Ok(())
     }
 
     pub fn link_get(&mut self, attr: &LinkAttrs) -> Result<Box<dyn Link>> {
@@ -170,5 +211,16 @@ mod tests {
 
         let link = netlink.link_get(&LinkAttrs::new("foo")).unwrap();
         assert_ne!(link.attrs().oper_state, 2);
+    }
+
+    #[test]
+    fn test_ensure_link() {
+        test_setup!();
+        let mut netlink = Netlink::new();
+
+        let link = Kind::new_bridge("foo");
+        let link = netlink.ensure_link(&link);
+
+        assert!(link.is_ok());
     }
 }

@@ -11,9 +11,10 @@ use std::sync::Arc;
 use clap::Parser;
 use ipnet::IpNet;
 use log::{debug, info};
+use sinabro_config::generate_mac_addr;
 use sinabro_netlink::netlink::Netlink;
 use sinabro_netlink::route::addr::AddressBuilder;
-use sinabro_netlink::route::link::{Kind, Link, LinkAttrs};
+use sinabro_netlink::route::link::{Kind, Link, LinkAttrs, VxlanAttrs};
 use sinabro_netlink::route::routing::{RoutingBuilder, Via};
 use tokio::sync::Notify;
 use tracing::Level;
@@ -73,19 +74,8 @@ async fn main() -> anyhow::Result<()> {
 
     let mut netlink = Netlink::new();
 
-    // create and configure the bridge with the cni0 name
     let bridge = Kind::new_bridge(bridge_name);
-
-    if let Err(e) = netlink.link_add(&bridge) {
-        if e.to_string().contains("File exists") {
-            info!("cni0 interface already exists");
-        } else {
-            return Err(e);
-        }
-    }
-
-    let bridge = netlink.link_get(bridge.attrs())?;
-    netlink.link_up(&bridge)?;
+    let bridge = netlink.ensure_link(&bridge)?;
 
     let address = AddressBuilder::default()
         .ip(bridge_ip.as_str().parse::<IpNet>()?)
@@ -103,7 +93,6 @@ async fn main() -> anyhow::Result<()> {
     let eth0 = netlink.link_get(&eth0_attrs)?;
     netlink.link_up(&eth0)?;
 
-    // setup additional route rule
     node_routes
         .iter()
         .filter(|node_route| node_route.ip != host_ip)
@@ -125,6 +114,22 @@ async fn main() -> anyhow::Result<()> {
                 Ok(())
             }
         })?;
+
+    let vxlan_mac = generate_mac_addr()?;
+    let vxlan_dev = Kind::Vxlan {
+        attrs: LinkAttrs {
+            name: "sinabro_vxlan".to_string(),
+            mtu: 1500,
+            hw_addr: vxlan_mac,
+            ..Default::default()
+        },
+        vxlan_attrs: VxlanAttrs {
+            flow_based: true,
+            port: Some(8472),
+            ..Default::default()
+        },
+    };
+    let _vxlan_dev = netlink.ensure_link(&vxlan_dev)?;
 
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;

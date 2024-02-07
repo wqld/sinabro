@@ -17,6 +17,7 @@ pub enum Namespace {
     Fd(i32),
 }
 
+#[derive(Default)]
 pub struct VxlanAttrs {
     pub id: u32,
     pub group: Option<Vec<u8>>,
