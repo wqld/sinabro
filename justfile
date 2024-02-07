@@ -24,3 +24,6 @@ cargo-check:
 
 e2e-test: build-image
     kubectl kuttl test --config ./tests/kuttl-test.yaml
+
+launch-rust-env:
+    docker run --rm --privileged -it -v $(pwd):/source rust sh

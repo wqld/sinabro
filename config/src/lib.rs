@@ -1,5 +1,7 @@
 use std::path::Path;
 
+use anyhow::Result;
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
 use tracing_appender::{non_blocking, rolling};
@@ -67,6 +69,16 @@ pub fn setup_tracing_to_file(
     Ok(guard)
 }
 
+pub fn generate_mac_addr() -> Result<Vec<u8>> {
+    let mut rng = rand::thread_rng();
+    let mut buf = [0u8; 6];
+    rng.fill(&mut buf[..]);
+
+    buf[0] = (buf[0] | 0x02) & 0xfe;
+
+    Ok(buf.to_vec())
+}
+
 #[cfg(test)]
 mod tests {
     use tracing::Level;
@@ -115,5 +127,13 @@ mod tests {
         assert!(file_content.contains("Hello, world!"));
 
         std::fs::remove_file(&file_name).unwrap();
+    }
+
+    #[test]
+    fn test_generate_mac_addr() {
+        let mac_addr = generate_mac_addr().unwrap();
+        assert_eq!(mac_addr.len(), 6);
+        assert_eq!(mac_addr[0] & 0x01, 0);
+        assert_eq!(mac_addr[0] & 0x02, 2);
     }
 }

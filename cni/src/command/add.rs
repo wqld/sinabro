@@ -6,7 +6,7 @@ use ipnet::IpNet;
 use nix::sched::{setns, CloneFlags};
 use rand::Rng;
 use serde::Serialize;
-use sinabro_config::Config;
+use sinabro_config::{generate_mac_addr, Config};
 use sinabro_netlink::{
     netlink::Netlink,
     route::{
@@ -17,8 +17,6 @@ use sinabro_netlink::{
 };
 use tokio::task::spawn_blocking;
 use tracing::info;
-
-use crate::command::generate_mac_addr;
 
 use super::CniCommand;
 
