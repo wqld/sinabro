@@ -21,6 +21,8 @@ use tracing::Level;
 
 use crate::context::Context;
 
+const RTNH_F_ONLINK: u32 = 0x4;
+
 #[derive(Debug, Parser)]
 struct Opt {
     #[clap(short, long, default_value = "eth0")]
@@ -119,10 +121,12 @@ async fn main() -> anyhow::Result<()> {
         .iter()
         .filter(|node_route| node_route.ip != host_ip)
         .try_for_each(|node_route| {
+            let pod_cidr_ip_net = node_route.pod_cidr.parse::<IpNet>()?;
             let route = RoutingBuilder::default()
-                .oif_index(eth0.attrs().index)
-                .dst(Some(node_route.pod_cidr.parse().unwrap()))
-                .via(Some(Via::new(&node_route.ip).unwrap()))
+                .oif_index(vxlan.attrs().index)
+                .dst(Some(pod_cidr_ip_net))
+                .via(Some(Via::new(&pod_cidr_ip_net.addr().to_string())?))
+                .flags(RTNH_F_ONLINK)
                 .build()?;
 
             if let Err(e) = netlink.route_add(&route) {
