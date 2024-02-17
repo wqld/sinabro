@@ -4,6 +4,8 @@ use anyhow::Result;
 use derive_builder::Builder;
 use ipnet::IpNet;
 
+use crate::RTA_VIA;
+
 use super::{
     addr::AddrFamily,
     message::{Attribute, RouteAttrs, RouteMessage},
@@ -32,6 +34,7 @@ pub struct Routing {
     pub scope: u8,
     pub rtm_type: u8,
     pub via: Option<Via>,
+    pub mtu: Option<u32>,
     pub flags: u32,
 }
 
@@ -68,6 +71,14 @@ impl From<&[u8]> for Routing {
                 }
                 libc::RTA_IIF => {
                     routing.iif_index = i32::from_ne_bytes(attr.payload[..4].try_into().unwrap());
+                }
+                libc::RTA_TABLE => {
+                    routing.table = u8::from_ne_bytes(attr.payload[..1].try_into().unwrap());
+                }
+                RTA_VIA => {
+                    let family = u16::from_ne_bytes(attr.payload[..2].try_into().unwrap());
+                    let addr = vec_to_addr(&attr.payload[2..]).unwrap();
+                    routing.via = Some(Via { family, addr });
                 }
                 _ => {}
             }
