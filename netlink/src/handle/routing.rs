@@ -12,13 +12,12 @@ use crate::{
         message::{Attribute, RouteAttr, RouteMessage},
         routing::Routing,
     },
+    RTA_MTU, RTA_VIA,
 };
 
 use super::sock_handle::SocketHandle;
 
 const RTM_F_LOOKUP_TABLE: u32 = 0x1000;
-
-const RTA_VIA: u16 = 18;
 
 pub struct RouteHandle<'a> {
     pub socket: &'a mut SocketHandle,
@@ -104,6 +103,12 @@ impl RouteHandle<'_> {
 
         if let Some(via) = &route.via {
             attrs.push(RouteAttr::new(RTA_VIA, &via.encode()));
+        }
+
+        if let Some(mtu) = route.mtu {
+            let mut b = [0; 4];
+            b.copy_from_slice(&mtu.to_ne_bytes());
+            attrs.push(RouteAttr::new(RTA_MTU, &b));
         }
 
         // TODO: more attributes to be added

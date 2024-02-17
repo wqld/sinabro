@@ -372,7 +372,7 @@ impl RouteAttr {
         }
 
         if let Some(port) = vxlan_attrs.port {
-            add_attr(port > 0, IFLA_VXLAN_PORT, &port.to_ne_bytes());
+            add_attr(port > 0, IFLA_VXLAN_PORT, &port.to_be_bytes());
         }
 
         if let Some((low, high)) = vxlan_attrs.port_range {

@@ -47,23 +47,18 @@ async fn main() -> anyhow::Result<()> {
         .ok_or_else(|| anyhow::anyhow!("failed to find node route"))?;
     debug!("host route: {:?}", host_route);
 
-    let bridge_ip = host_route
-        .pod_cidr
-        .parse::<IpNet>()
-        .map(|ipnet| match ipnet {
-            IpNet::V4(v4) => {
-                let net = u32::from(v4.network()) + 1;
-                IpAddr::V4(Ipv4Addr::from(net))
-            }
-            IpNet::V6(v6) => {
-                let net = u128::from(v6.network()) + 1;
-                IpAddr::V6(Ipv6Addr::from(net))
-            }
-        })?;
-    let bridge_ip = IpNet::new(
-        bridge_ip,
-        host_route.pod_cidr.parse::<IpNet>()?.prefix_len(),
-    )?;
+    let pod_cidr_ip_net = host_route.pod_cidr.parse::<IpNet>()?;
+    let bridge_ip = match pod_cidr_ip_net {
+        IpNet::V4(v4) => {
+            let net = u32::from(v4.network()) + 1;
+            IpAddr::V4(Ipv4Addr::from(net))
+        }
+        IpNet::V6(v6) => {
+            let net = u128::from(v6.network()) + 1;
+            IpAddr::V6(Ipv6Addr::from(net))
+        }
+    };
+    let bridge_ip = IpNet::new(bridge_ip, pod_cidr_ip_net.prefix_len())?;
     let bridge_ip = format!("{:?}", bridge_ip);
     debug!("bridge ip: {}", bridge_ip);
 
@@ -93,6 +88,33 @@ async fn main() -> anyhow::Result<()> {
     let eth0 = netlink.link_get(&eth0_attrs)?;
     netlink.link_up(&eth0)?;
 
+    let host_ip_vec = match host_ip.parse::<IpAddr>()? {
+        IpAddr::V4(ip) => ip.octets().to_vec(),
+        IpAddr::V6(ip) => ip.octets().to_vec(),
+    };
+    let vxlan_mac = generate_mac_addr()?;
+    let vxlan = Kind::Vxlan {
+        attrs: LinkAttrs {
+            name: "sinabro_vxlan".to_string(),
+            mtu: 1450,
+            hw_addr: vxlan_mac,
+            ..Default::default()
+        },
+        vxlan_attrs: VxlanAttrs {
+            id: 1,
+            vtep_index: Some(eth0.attrs().index as u32),
+            src_addr: Some(host_ip_vec),
+            port: Some(8472),
+            ..Default::default()
+        },
+    };
+    let vxlan = netlink.ensure_link(&vxlan)?;
+
+    let vxlan_ip = IpNet::new(pod_cidr_ip_net.addr(), 32)?;
+    let vxlan_addr = AddressBuilder::default().ip(vxlan_ip).build()?;
+
+    netlink.addr_add(&vxlan, &vxlan_addr)?;
+
     node_routes
         .iter()
         .filter(|node_route| node_route.ip != host_ip)
@@ -114,22 +136,6 @@ async fn main() -> anyhow::Result<()> {
                 Ok(())
             }
         })?;
-
-    let vxlan_mac = generate_mac_addr()?;
-    let vxlan_dev = Kind::Vxlan {
-        attrs: LinkAttrs {
-            name: "sinabro_vxlan".to_string(),
-            mtu: 1500,
-            hw_addr: vxlan_mac,
-            ..Default::default()
-        },
-        vxlan_attrs: VxlanAttrs {
-            flow_based: true,
-            port: Some(8472),
-            ..Default::default()
-        },
-    };
-    let _vxlan_dev = netlink.ensure_link(&vxlan_dev)?;
 
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;
@@ -156,3 +162,19 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+// fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
+//     info!("running command: {} {}", cmd, args.join(" "));
+
+//     let out = std::process::Command::new(cmd)
+//         .args(args)
+//         .output()
+//         .expect("failed to run command");
+
+//     match out.status.success() {
+//         true => {}
+//         _ => error!("{}", String::from_utf8_lossy(&out.stderr)),
+//     }
+
+//     Ok(())
+// }

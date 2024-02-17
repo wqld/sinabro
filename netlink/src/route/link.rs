@@ -12,12 +12,13 @@ pub const IFLA_BR_AGEING_TIME: u16 = 0x4;
 pub const IFLA_BR_VLAN_FILTERING: u16 = 0x7;
 pub const IFLA_BR_MCAST_SNOOPING: u16 = 0x17;
 
+#[derive(Debug)]
 pub enum Namespace {
     Pid(i32),
     Fd(i32),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct VxlanAttrs {
     pub id: u32,
     pub group: Option<Vec<u8>>,
@@ -41,6 +42,7 @@ pub struct VxlanAttrs {
     pub flow_based: bool,
 }
 
+#[derive(Debug)]
 pub enum Kind {
     Device(LinkAttrs),
     Dummy(LinkAttrs),

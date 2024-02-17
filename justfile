@@ -13,7 +13,7 @@ clean-kind-cluster:
 deploy-agent: setup-kind-cluster
     kubectl apply -f tests/e2e/deploy-test/agent.yaml
 
-deploy-test-pods: deploy-agent
+deploy-test-pods:
     kubectl taint nodes kind-control-plane node-role.kubernetes.io/control-plane-
     kubectl apply -f tests/e2e/deploy-test/test-pods.yaml
 

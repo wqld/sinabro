@@ -192,7 +192,10 @@ impl Netlink {
 
 #[cfg(test)]
 mod tests {
-    use crate::{route::link::Kind, test_setup};
+    use crate::{
+        route::link::{Kind, VxlanAttrs},
+        test_setup,
+    };
 
     use super::*;
 
@@ -217,10 +220,23 @@ mod tests {
     fn test_ensure_link() {
         test_setup!();
         let mut netlink = Netlink::new();
-
-        let link = Kind::new_bridge("foo");
+        let vxlan_mac = vec![0x02, 0x1A, 0x79, 0x35, 0x1C, 0x5D];
+        let link = Kind::Vxlan {
+            attrs: LinkAttrs {
+                name: "sinabro_vxlan".to_string(),
+                mtu: 1500,
+                hw_addr: vxlan_mac,
+                ..Default::default()
+            },
+            vxlan_attrs: VxlanAttrs {
+                flow_based: true,
+                port: Some(8472),
+                ..Default::default()
+            },
+        };
         let link = netlink.ensure_link(&link);
 
         assert!(link.is_ok());
+        println!("{:?}", link.unwrap().kind());
     }
 }
