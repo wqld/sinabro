@@ -13,5 +13,5 @@ ipnet = { version = "2.7.0", features = ["serde"] }
 thiserror = "1.0"
 tokio = { version = "1", features = ["full"] }
 nix = { version = "0.27.1", features = ["sched", "user"] }
-derive_builder = "0.13.0"
+derive_builder = "0.20.0"
 sysctl = "0.5"
