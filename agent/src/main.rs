@@ -15,6 +15,7 @@ use sinabro_config::generate_mac_addr;
 use sinabro_netlink::netlink::Netlink;
 use sinabro_netlink::route::addr::AddressBuilder;
 use sinabro_netlink::route::link::{Kind, Link, LinkAttrs, VxlanAttrs};
+use sinabro_netlink::route::routing::{RoutingBuilder, Via};
 use tokio::sync::Notify;
 use tracing::Level;
 
@@ -117,7 +118,24 @@ async fn main() -> anyhow::Result<()> {
     node_routes
         .iter()
         .filter(|node_route| node_route.ip != host_ip)
-        .for_each(|_node_route| {});
+        .try_for_each(|node_route| {
+            let route = RoutingBuilder::default()
+                .oif_index(eth0.attrs().index)
+                .dst(Some(node_route.pod_cidr.parse().unwrap()))
+                .via(Some(Via::new(&node_route.ip).unwrap()))
+                .build()?;
+
+            if let Err(e) = netlink.route_add(&route) {
+                if e.to_string().contains("File exists") {
+                    info!("route already exists");
+                    Ok(())
+                } else {
+                    Err(e)
+                }
+            } else {
+                Ok(())
+            }
+        })?;
 
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;
