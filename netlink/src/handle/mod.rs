@@ -1,5 +1,6 @@
 pub mod addr;
 pub mod link;
+pub mod neigh;
 pub mod routing;
 pub mod sock_handle;
 

@@ -75,13 +75,13 @@ impl AddrHandle<'_> {
             None => local_addr_data.clone(),
         };
 
-        let msg = Box::new(AddressMessage {
+        let msg = AddressMessage {
             family: family as u8,
             prefix_len: addr.ip.prefix_len(),
             flags: addr.flags,
             scope: addr.scope,
             index,
-        });
+        };
 
         let local_data = RouteAttr::new(libc::IFA_LOCAL, &local_addr_data);
         let address_data = RouteAttr::new(libc::IFA_ADDRESS, &peer_addr_data);

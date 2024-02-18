@@ -48,8 +48,8 @@ impl RouteHandle<'_> {
         let mut req = Message::new(proto, flags);
 
         let mut msg = match proto {
-            libc::RTM_DELROUTE => Box::new(RouteMessage::new_delete_msg()),
-            _ => Box::new(RouteMessage::new()),
+            libc::RTM_DELROUTE => RouteMessage::new_delete_msg(),
+            _ => RouteMessage::new(),
         };
 
         let mut attrs = vec![];

@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 
 use crate::core::{message::Message, socket::Socket};
 
-use super::{addr::AddrHandle, link::LinkHandle, routing::RouteHandle};
+use super::{addr::AddrHandle, link::LinkHandle, neigh::NeighHandle, routing::RouteHandle};
 
 const PID_KERNEL: u32 = 0;
 
@@ -38,6 +38,10 @@ impl SocketHandle {
 
     pub fn handle_route(&mut self) -> RouteHandle<'_> {
         RouteHandle::from(self)
+    }
+
+    pub fn handle_neigh(&mut self) -> NeighHandle<'_> {
+        NeighHandle::from(self)
     }
 
     pub fn request(&mut self, msg: &mut Message, res_type: u16) -> Result<Vec<Vec<u8>>> {
