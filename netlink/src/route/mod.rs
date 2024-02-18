@@ -6,6 +6,7 @@ use thiserror::Error;
 pub mod addr;
 pub mod link;
 pub mod message;
+pub mod neigh;
 pub mod routing;
 
 pub const IFLA_VXLAN_UNSPEC: u16 = 0;

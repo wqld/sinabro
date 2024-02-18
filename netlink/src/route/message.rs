@@ -560,6 +560,38 @@ impl RouteMessage {
     }
 }
 
+#[repr(C)]
+#[derive(Serialize, Deserialize, Default)]
+pub struct NeighborMessage {
+    pub family: u8,
+    pub index: u32,
+    pub state: u16,
+    pub flags: u8,
+    pub neigh_type: u8,
+}
+
+impl Attribute for NeighborMessage {
+    fn len(&self) -> usize {
+        9
+    }
+
+    fn serialize(&self) -> Result<Vec<u8>> {
+        Ok(bincode::serialize(self)?)
+    }
+}
+
+impl NeighborMessage {
+    pub fn new(family: u8, index: u32, state: u16, flags: u8, neigh_type: u8) -> Self {
+        Self {
+            family,
+            index,
+            state,
+            flags,
+            neigh_type,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::route::message::LinkMessage;

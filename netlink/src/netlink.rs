@@ -8,6 +8,7 @@ use crate::{
     route::{
         addr::{AddrCmd, AddrFamily, Address},
         link::{Link, LinkAttrs},
+        neigh::Neighbor,
         routing::{Routing, RtCmd},
     },
 };
@@ -187,6 +188,18 @@ impl Netlink {
             .or_insert(SocketHandle::new(libc::NETLINK_ROUTE))
             .handle_route()
             .handle(route, proto, flags)
+    }
+
+    pub fn neigh_set(&mut self, neigh: &Neighbor) -> Result<()> {
+        self.sockets
+            .entry(libc::NETLINK_ROUTE)
+            .or_insert(SocketHandle::new(libc::NETLINK_ROUTE))
+            .handle_neigh()
+            .handle(
+                neigh,
+                libc::RTM_NEWNEIGH,
+                libc::NLM_F_CREATE | libc::NLM_F_REPLACE | libc::NLM_F_ACK,
+            )
     }
 }
 

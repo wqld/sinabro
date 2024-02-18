@@ -1,6 +1,6 @@
 use std::ops::{Deref, DerefMut};
 
-use anyhow::{bail, Result};
+use anyhow::{anyhow, Result};
 
 use crate::{
     core::message::Message,
@@ -128,12 +128,12 @@ impl LinkHandle<'_> {
         let msgs = self.request(&mut req, 0)?;
 
         match msgs.len() {
-            0 => bail!("no link found"),
+            0 => Err(anyhow!("no link found")),
             1 => {
                 let msg = Kind::from(msgs[0].as_slice());
                 Ok(Box::new(msg))
             }
-            _ => bail!("multiple links found"),
+            _ => Err(anyhow!("multiple links found")),
         }
     }
 
@@ -141,7 +141,7 @@ impl LinkHandle<'_> {
         let mut req = Message::new(libc::RTM_NEWLINK, libc::NLM_F_ACK);
         let base = link.attrs();
 
-        let mut msg = Box::new(LinkMessage::new(libc::AF_UNSPEC));
+        let mut msg = LinkMessage::new(libc::AF_UNSPEC);
         msg.index = base.index;
         msg.flags = libc::IFF_UP as u32;
         msg.change_mask = libc::IFF_UP as u32;
@@ -157,7 +157,7 @@ impl LinkHandle<'_> {
         let mut req = Message::new(libc::RTM_SETLINK, libc::NLM_F_ACK);
         let base = link.attrs();
 
-        let mut msg = Box::new(LinkMessage::new(libc::AF_UNSPEC));
+        let mut msg = LinkMessage::new(libc::AF_UNSPEC);
         msg.index = base.index;
 
         let master_attr = RouteAttr::new(libc::IFLA_MASTER, &master_index.to_ne_bytes());
@@ -174,7 +174,7 @@ impl LinkHandle<'_> {
         let mut req = Message::new(libc::RTM_SETLINK, libc::NLM_F_ACK);
         let base = link.attrs();
 
-        let mut msg = Box::new(LinkMessage::new(libc::AF_UNSPEC));
+        let mut msg = LinkMessage::new(libc::AF_UNSPEC);
         msg.index = base.index;
 
         let ns_attr = RouteAttr::new(libc::IFLA_NET_NS_FD, &ns.to_ne_bytes());
@@ -191,7 +191,7 @@ impl LinkHandle<'_> {
         let mut req = Message::new(libc::RTM_SETLINK, libc::NLM_F_ACK);
         let base = link.attrs();
 
-        let mut msg = Box::new(LinkMessage::new(libc::AF_UNSPEC));
+        let mut msg = LinkMessage::new(libc::AF_UNSPEC);
         msg.index = base.index;
 
         let name_attr = RouteAttr::new(libc::IFLA_IFNAME, name.as_bytes());

@@ -166,19 +166,3 @@ async fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
-
-// fn run_command(cmd: &str, args: &[&str]) -> anyhow::Result<()> {
-//     info!("running command: {} {}", cmd, args.join(" "));
-
-//     let out = std::process::Command::new(cmd)
-//         .args(args)
-//         .output()
-//         .expect("failed to run command");
-
-//     match out.status.success() {
-//         true => {}
-//         _ => error!("{}", String::from_utf8_lossy(&out.stderr)),
-//     }
-
-//     Ok(())
-// }
