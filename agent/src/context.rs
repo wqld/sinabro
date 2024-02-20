@@ -1,4 +1,14 @@
-use k8s_openapi::api::core::v1::{ConfigMap, Node};
+use std::fmt::Debug;
+
+use anyhow::{anyhow, bail, Result};
+use futures::{StreamExt, TryStreamExt};
+use k8s_openapi::api::core::v1::{ConfigMap, Node, Pod};
+use kube::{
+    api::{AttachParams, AttachedProcess, ListParams, WatchEvent, WatchParams},
+    Api, ResourceExt,
+};
+use sinabro_config::parse_mac;
+use tracing::info;
 
 use crate::node_route::NodeRoute;
 
@@ -7,30 +17,116 @@ pub struct Context {
 }
 
 impl Context {
-    pub async fn new() -> anyhow::Result<Self> {
+    pub async fn new() -> Result<Self> {
         let client = kube::Client::try_default().await?;
         Ok(Self { client })
     }
 
-    pub async fn get_cluster_cidr(&self) -> anyhow::Result<String> {
-        kube::Api::<ConfigMap>::namespaced(self.client.clone(), "kube-system")
+    pub async fn get_cluster_cidr(&self) -> Result<String> {
+        Api::<ConfigMap>::namespaced(self.client.clone(), "kube-system")
             .get("kube-proxy")
             .await?
             .data
             .and_then(|data| data.get("config.conf").cloned())
             .and_then(|conf| serde_yaml::from_str::<serde_yaml::Value>(&conf).ok())
             .and_then(|yaml| yaml["clusterCIDR"].as_str().map(ToOwned::to_owned))
-            .ok_or_else(|| anyhow::anyhow!("failed to get cluster cidr"))
+            .ok_or_else(|| anyhow!("failed to get cluster cidr"))
     }
 
-    pub async fn get_node_routes(&self) -> anyhow::Result<Vec<NodeRoute>> {
-        Ok(kube::Api::<Node>::all(self.client.clone())
+    pub async fn get_node_routes(&self) -> Result<Vec<NodeRoute>> {
+        Ok(Api::<Node>::all(self.client.clone())
             .list(&Default::default())
             .await?
             .items
             .into_iter()
             .map(NodeRoute::from)
             .collect())
+    }
+
+    pub async fn get_vxlan_mac_address(&self, node_ip: &str) -> Result<Vec<u8>> {
+        let pods: Api<Pod> = Api::namespaced(self.client.clone(), "kube-system");
+        let lp = ListParams::default().labels("name=agent");
+
+        for p in pods.list(&lp).await? {
+            let pod_name = p.metadata.name.unwrap_or_default();
+            Self::watch_pod_until_running(&pods, &pod_name).await?;
+
+            if p.status
+                .and_then(|status| status.host_ip)
+                .filter(|host_ip| host_ip == node_ip)
+                .is_some()
+            {
+                let command = vec!["ip", "link", "show", "sinabro_vxlan"];
+                return Self::exec_command_in_pod(&pods, &pod_name, command)
+                    .await?
+                    .lines()
+                    .find_map(|line| {
+                        if line.contains("link/ether") {
+                            line.split_whitespace().nth(1).map(parse_mac)
+                        } else {
+                            None
+                        }
+                    })
+                    .ok_or(anyhow!("failed to get vxlan mac address"))?;
+            }
+        }
+
+        bail!("failed to get vxlan mac address")
+    }
+
+    async fn watch_pod_until_running(pods: &Api<Pod>, name: &str) -> Result<()> {
+        let wp = WatchParams::default()
+            .fields(&format!("metadata.name={}", name))
+            .timeout(10);
+        let mut stream = pods.watch(&wp, "0").await?.boxed();
+
+        while let Some(status) = stream.try_next().await? {
+            match status {
+                WatchEvent::Added(o) => {
+                    info!("Pod {} has been added", o.name_any());
+                }
+                WatchEvent::Modified(o) => {
+                    let s = o.status.as_ref().expect("status exists on pod");
+                    if s.phase.as_deref() == Some("Running") {
+                        info!("Ready to attach to {}", o.name_any());
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn exec_command_in_pod<I: Debug, T>(
+        pods: &Api<Pod>,
+        name: &str,
+        command: I,
+    ) -> Result<String>
+    where
+        I: IntoIterator<Item = T>,
+        T: Into<String>,
+    {
+        let attached = pods
+            .exec(name, command, &AttachParams::default().stderr(false))
+            .await?;
+
+        Self::get_output(attached).await
+    }
+
+    async fn get_output(mut attached: AttachedProcess) -> Result<String> {
+        let stdout = tokio_util::io::ReaderStream::new(
+            attached.stdout().ok_or(anyhow!("stdout not found"))?,
+        );
+        let out = stdout
+            .filter_map(|r| async { r.ok().and_then(|v| String::from_utf8(v.to_vec()).ok()) })
+            .collect::<Vec<_>>()
+            .await
+            .join("");
+
+        attached.join().await?;
+        Ok(out)
     }
 }
 

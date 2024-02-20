@@ -92,16 +92,19 @@ impl AddrHandle<'_> {
 
         if family == libc::AF_INET {
             let broadcast = match addr.broadcast {
-                Some(IpAddr::V4(br)) => br.octets().to_vec(),
-                Some(IpAddr::V6(br)) => br.octets().to_vec(),
-                None => match addr.ip.broadcast() {
-                    IpAddr::V4(br) => br.octets().to_vec(),
-                    IpAddr::V6(br) => br.octets().to_vec(),
+                Some(IpAddr::V4(br)) => Some(br.octets().to_vec()),
+                Some(IpAddr::V6(br)) => Some(br.octets().to_vec()),
+                None if addr.ip.prefix_len() < 31 => match addr.ip.broadcast() {
+                    IpAddr::V4(br) => Some(br.octets().to_vec()),
+                    IpAddr::V6(br) => Some(br.octets().to_vec()),
                 },
+                None => None,
             };
 
-            let broadcast_data = RouteAttr::new(libc::IFA_BROADCAST, &broadcast);
-            req.add(&broadcast_data.serialize()?);
+            if let Some(broadcast) = broadcast {
+                let broadcast_data = RouteAttr::new(libc::IFA_BROADCAST, &broadcast);
+                req.add(&broadcast_data.serialize()?);
+            }
 
             if !addr.label.is_empty() {
                 let label_data = RouteAttr::new(libc::IFA_LABEL, &zero_terminated(&addr.label));

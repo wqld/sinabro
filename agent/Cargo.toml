@@ -6,6 +6,10 @@ description = "eBPF-based Networking, Security, and Observability"
 license = "Apache-2.0"
 edition = "2021"
 
+[features]
+default = ["ws"]
+ws = ["kube/ws"]
+
 [dependencies]
 sinabro-config = { path = "../config" }
 sinabro-netlink = { path = "../netlink" }
@@ -26,6 +30,8 @@ k8s-openapi = { version = "0.21.0", features = ["latest"] }
 serde = "1.0"
 serde_yaml = "0.9"
 serde_json = "1.0"
+futures = "0.3.17"
+tokio-util = "0.7.0"
 tokio = { version = "1.25", features = [
     "macros",
     "rt",
@@ -36,7 +42,6 @@ tokio = { version = "1.25", features = [
 tracing = "0.1"
 
 [dev-dependencies]
-futures = { version = "0.3.17" }
 http = "0.2"
 http-body-util = "0.1.0"
 hyper = "0.14"

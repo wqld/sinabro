@@ -1,6 +1,7 @@
 mod bpf_loader;
 mod context;
 mod node_route;
+mod route;
 mod server;
 
 use std::env;
@@ -11,17 +12,13 @@ use std::sync::Arc;
 use clap::Parser;
 use ipnet::IpNet;
 use log::{debug, info};
-use sinabro_config::generate_mac_addr;
-use sinabro_netlink::netlink::Netlink;
 use sinabro_netlink::route::addr::AddressBuilder;
-use sinabro_netlink::route::link::{Kind, Link, LinkAttrs, VxlanAttrs};
-use sinabro_netlink::route::routing::{RoutingBuilder, Via};
+use sinabro_netlink::route::link::{Kind, Link, LinkAttrs};
 use tokio::sync::Notify;
 use tracing::Level;
 
 use crate::context::Context;
-
-const RTNH_F_ONLINK: u32 = 0x4;
+use crate::route::netlink::Netlink;
 
 #[derive(Debug, Parser)]
 struct Opt {
@@ -88,58 +85,11 @@ async fn main() -> anyhow::Result<()> {
 
     let eth0_attrs = LinkAttrs::new("eth0");
     let eth0 = netlink.link_get(&eth0_attrs)?;
+    let eth0_index = eth0.attrs().index as u32;
     netlink.link_up(&eth0)?;
 
-    let host_ip_vec = match host_ip.parse::<IpAddr>()? {
-        IpAddr::V4(ip) => ip.octets().to_vec(),
-        IpAddr::V6(ip) => ip.octets().to_vec(),
-    };
-    let vxlan_mac = generate_mac_addr()?;
-    let vxlan = Kind::Vxlan {
-        attrs: LinkAttrs {
-            name: "sinabro_vxlan".to_string(),
-            mtu: 1450,
-            hw_addr: vxlan_mac,
-            ..Default::default()
-        },
-        vxlan_attrs: VxlanAttrs {
-            id: 1,
-            vtep_index: Some(eth0.attrs().index as u32),
-            src_addr: Some(host_ip_vec),
-            port: Some(8472),
-            ..Default::default()
-        },
-    };
-    let vxlan = netlink.ensure_link(&vxlan)?;
-
-    let vxlan_ip = IpNet::new(pod_cidr_ip_net.addr(), 32)?;
-    let vxlan_addr = AddressBuilder::default().ip(vxlan_ip).build()?;
-
-    netlink.addr_add(&vxlan, &vxlan_addr)?;
-
-    node_routes
-        .iter()
-        .filter(|node_route| node_route.ip != host_ip)
-        .try_for_each(|node_route| {
-            let pod_cidr_ip_net = node_route.pod_cidr.parse::<IpNet>()?;
-            let route = RoutingBuilder::default()
-                .oif_index(vxlan.attrs().index)
-                .dst(Some(pod_cidr_ip_net))
-                .via(Some(Via::new(&pod_cidr_ip_net.addr().to_string())?))
-                .flags(RTNH_F_ONLINK)
-                .build()?;
-
-            if let Err(e) = netlink.route_add(&route) {
-                if e.to_string().contains("File exists") {
-                    info!("route already exists");
-                    Ok(())
-                } else {
-                    Err(e)
-                }
-            } else {
-                Ok(())
-            }
-        })?;
+    let vxlan_index = netlink.setup_vxlan_device(&host_ip, eth0_index, &pod_cidr_ip_net)?;
+    netlink.initialize_overlay(vxlan_index, &host_ip, &node_routes)?;
 
     sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
         .write("/etc/cni/net.d/10-sinabro.conf")?;
