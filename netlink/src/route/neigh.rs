@@ -60,6 +60,8 @@ impl NeighborBuilder {
 
 #[cfg(test)]
 mod tests {
+    use sinabro_config::parse_mac;
+
     use crate::route::message::{Payload, RouteAttr, RouteAttrHeader};
 
     use super::*;
@@ -97,6 +99,7 @@ mod tests {
 
     #[test]
     fn test_from_bytes() {
+        let mac_bytes = parse_mac("aa:bb:cc:dd:00:01").unwrap();
         let neigh_msg = NeighborMessage {
             family: libc::AF_INET as u8,
             index: 5,
@@ -118,7 +121,7 @@ mod tests {
                 rta_type: libc::NDA_LLADDR,
                 rta_len: 10,
             },
-            payload: Payload::from(&[0x02, 0x12, 0x34, 0x56, 0x78, 0x9A][..]),
+            payload: Payload::from(mac_bytes.as_slice()),
             attributes: None,
         });
 

@@ -51,13 +51,13 @@ impl NeighHandle<'_> {
 
         let family = neigh.family.map_or(family, |f| f);
 
-        let neigh_msg = NeighborMessage {
+        let neigh_msg = NeighborMessage::new(
             family,
-            index: neigh.link_index,
-            state: neigh.state,
-            flags: neigh.flags,
-            neigh_type: neigh.neigh_type,
-        };
+            neigh.link_index,
+            neigh.state,
+            neigh.flags,
+            neigh.neigh_type,
+        );
 
         let destination = RouteAttr::new(libc::NDA_DST, &ip_addr_vec);
 
@@ -77,7 +77,15 @@ impl NeighHandle<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{route::neigh::NeighborBuilder, test_setup};
+    use sinabro_config::parse_mac;
+
+    use crate::{
+        route::{
+            link::{Kind, LinkAttrs},
+            neigh::NeighborBuilder,
+        },
+        test_setup,
+    };
 
     use super::*;
 
@@ -85,14 +93,31 @@ mod tests {
     fn test_neigh_handle() {
         test_setup!();
         let mut handle = SocketHandle::new(libc::NETLINK_ROUTE);
+
+        let mut link_handle = handle.handle_link();
+        let attr = LinkAttrs::new("foo");
+
+        let link = Kind::Dummy(attr.clone());
+
+        link_handle
+            .add(
+                &link,
+                libc::NLM_F_CREATE | libc::NLM_F_EXCL | libc::NLM_F_ACK,
+            )
+            .unwrap();
+
+        let link = link_handle.get(&attr).unwrap();
+
         let mut neigh_handle = handle.handle_neigh();
 
+        let mac_bytes = parse_mac("aa:bb:cc:dd:00:01").unwrap();
+
         let neigh = NeighborBuilder::default()
-            .link_index(5)
-            .state(128)
-            .ip_addr(Some(IpAddr::V4("10.244.1.0".parse().unwrap())))
-            .mac_addr(Some(vec![0x02, 0x12, 0x34, 0x56, 0x78, 0x9A]))
-            .neigh_type(1)
+            .link_index(link.attrs().index as u32)
+            .state(libc::NUD_PERMANENT)
+            .neigh_type(libc::RTN_UNICAST)
+            .ip_addr(Some(IpAddr::V4("10.244.0.0".parse().unwrap())))
+            .mac_addr(Some(mac_bytes))
             .build()
             .unwrap();
 

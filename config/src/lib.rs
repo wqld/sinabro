@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use tracing::level_filters::LevelFilter;
@@ -33,14 +33,14 @@ impl Config<'_> {
         }
     }
 
-    pub fn write(&self, path: &str) -> anyhow::Result<()> {
+    pub fn write(&self, path: &str) -> Result<()> {
         let json = serde_json::to_string(self)?;
 
         if let Some(parent) = std::path::Path::new(path).parent() {
             std::fs::create_dir_all(parent)?;
         }
 
-        std::fs::write(path, json).map_err(|e| anyhow::anyhow!(e))
+        std::fs::write(path, json).map_err(|e| anyhow!(e))
     }
 }
 
@@ -58,7 +58,7 @@ pub fn setup_tracing_to_file(
     directory: impl AsRef<Path>,
     file_name_prefix: impl AsRef<Path>,
     filter: impl Into<LevelFilter>,
-) -> anyhow::Result<non_blocking::WorkerGuard> {
+) -> Result<non_blocking::WorkerGuard> {
     let file_appender = rolling::daily(directory, file_name_prefix);
     let (non_blocking, guard) = non_blocking(file_appender);
     fmt()
@@ -77,6 +77,19 @@ pub fn generate_mac_addr() -> Result<Vec<u8>> {
     buf[0] = (buf[0] | 0x02) & 0xfe;
 
     Ok(buf.to_vec())
+}
+
+pub fn parse_mac(mac: &str) -> Result<Vec<u8>> {
+    let mac = mac
+        .split(':')
+        .map(|s| u8::from_str_radix(s, 16))
+        .collect::<Result<Vec<u8>, _>>()?;
+
+    if mac.len() != 6 {
+        return Err(anyhow!("Invalid MAC address"));
+    }
+
+    Ok(mac)
 }
 
 #[cfg(test)]
@@ -135,5 +148,26 @@ mod tests {
         assert_eq!(mac_addr.len(), 6);
         assert_eq!(mac_addr[0] & 0x01, 0);
         assert_eq!(mac_addr[0] & 0x02, 2);
+    }
+
+    #[test]
+    fn test_parse_mac_valid() {
+        let mac_str = "aa:bb:cc:dd:00:01";
+        let mac_addr = parse_mac(mac_str).unwrap();
+        assert_eq!(mac_addr, vec![0xaa, 0xbb, 0xcc, 0xdd, 0x00, 0x01]);
+    }
+
+    #[test]
+    fn test_parse_mac_invalid_length() {
+        let mac_str = "aa:bb:cc:dd:00";
+        let result = parse_mac(mac_str);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_mac_invalid_chars() {
+        let mac_str = "aa:bb:cc:dd:00:ZZ";
+        let result = parse_mac(mac_str);
+        assert!(result.is_err());
     }
 }

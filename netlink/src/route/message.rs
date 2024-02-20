@@ -564,6 +564,7 @@ impl RouteMessage {
 #[derive(Serialize, Deserialize, Default)]
 pub struct NeighborMessage {
     pub family: u8,
+    pub _pad: [u8; 3],
     pub index: u32,
     pub state: u16,
     pub flags: u8,
@@ -572,7 +573,7 @@ pub struct NeighborMessage {
 
 impl Attribute for NeighborMessage {
     fn len(&self) -> usize {
-        9
+        12
     }
 
     fn serialize(&self) -> Result<Vec<u8>> {
@@ -584,6 +585,7 @@ impl NeighborMessage {
     pub fn new(family: u8, index: u32, state: u16, flags: u8, neigh_type: u8) -> Self {
         Self {
             family,
+            _pad: [0; 3],
             index,
             state,
             flags,

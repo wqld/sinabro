@@ -74,16 +74,10 @@ fn handle_tcp_ingress(mut ctx: TcContext) -> Result<i32, ()> {
         dst_port: src_port,
     };
 
-    info!(
-        &ctx,
-        "ingress: {:i}:{} -> {:i}:{}", src_ip, src_port, dst_ip, dst_port,
-    );
-
     let origin_value = unsafe {
         match SNAT_IPV4_MAP.get(&nat_key) {
             Some(value) => value,
             None => {
-                info!(&ctx, "cannot find nat key");
                 return Ok(TC_ACT_PIPE);
             }
         }
