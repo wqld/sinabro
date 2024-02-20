@@ -1,69 +1,38 @@
 # Sinabro
 
-Sinabro is a networking, observability and security solution with an eBPF and WASM-based data plane written in Rust.
+Sinabro is a networking solution for Kubernetes that leverages eBPF to provide high-performance networking and security features.
 
 ## Getting Started
 
-Currently, Sinabro is in the early stages of development. I am progressively developing it in the following environment, which is also the verified execution environment.
+Sinabro is currently in its early stages of development. The ongoing development is being carried out in the following environment, which is also the verified execution environment:
 
 - Ubuntu 22.04 arm64 on UTM
-- rustup 1.26.0 / rustc 1.75.0
-- Docker version 24.0.7
-- kind v0.20.0
 
-Please note that as the project is still in its infancy, there may be certain limitations or issues that have not yet been fully addressed. Your understanding and patience are greatly appreciated.
+Please note that due to the project's infancy, there may be limitations or issues that have not yet been fully addressed. Your understanding and patience are greatly appreciated.
 
 ### Prerequisites
 
-- Rust (aya)
-- Docker
-- Kubectl
-- Kind
+- [Rust](https://www.rust-lang.org) ([Aya](https://aya-rs.dev))
+- [Docker](https://www.docker.com) ([Kind](https://kind.sigs.k8s.io))
+- [Kubectl](https://kubernetes.io/docs/reference/kubectl/)
+- [Just](https://just.systems)
 
-### start kind cluster
+### Starting a kind cluster and deploying Sinabro CNI
 
-When starting the kind cluster, the default kindnet CNI must be disabled in order to verify the operation of the Sinabro CNI. Start the cluster using the predefined config related to this:
-
-```bash
-kind create cluster --config test/kind-config.yaml
-```
-
-### build
-
-In a Linux environment, you can build the eBPF program and the userspace application, known as the agent, using the following commands.
+To verify the operation of the Sinabro CNI, the default kindnet CNI must be disabled when starting the kind cluster. Start the cluster using the predefined config related to this:
 
 ```bash
-cargo xtask build-ebpf
-cargo build --target aarch64-unknown-linux-musl
-```
-
-After compiling, build the container image and load it into the kind cluster:
-
-```bash
-docker build -t sinabro:0.0.1 .
-kind load docker-image sinabro:0.0.1
-```
-
-### deploy
-
-Deploy the Sinabro CNI to the kind cluster:
-
-```bash
-kubectl apply -f test/agent.yaml
+just deploy-agent
 ```
 
 ## features (still in development)
 
-Only networking within the same network for containers is supported.
-
-### TODO
-
-- [x] Provide file-based IPAM
-- [x] eBPF-based masquerading: implement NAT with eBPF for traffic going out of the cluster
-- [x] Develop a Sinabro-specific netlink library
-- [ ] Route service traffic without kube-proxy
-- [ ] Enforce network policies with eBPF
-- [ ] Enable inter-host communication across different networks via VXLAN
-- [ ] Building an XDP-based BGP peering router
-- [ ] Implement service load balancing
-- [ ] Collect network telemetry with eBPF
+- [x] IPAM: IP addresses are currently managed based on files. Further implementation is planned for managing IP addresses through Kubernetes' CRD.
+- [x] eBPF-based Masquerading: NAT has been set up using eBPF to manage traffic exiting the cluster, with further enhancements in progress.
+- [x] Sinabro-specific Netlink Library: A separate netlink library has been created to facilitate the addition and modification of the netlink features required by Sinabro.
+- [x] VxLAN Overlay Network: The current implementation uses the ARP and FDB tables of the Linux kernel. Future plans include replacing this with BPF for lightweight tunneling.
+- [ ] Route Service Traffic without Kube-proxy
+- [ ] Enforce Network Policies with eBPF
+- [ ] Build an XDP-based BGP Peering Router
+- [ ] Implement Service Load Balancing
+- [ ] Collect Network Telemetry with eBPF
