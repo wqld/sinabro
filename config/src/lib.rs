@@ -69,7 +69,7 @@ pub fn setup_tracing_to_file(
     Ok(guard)
 }
 
-pub fn generate_mac_addr() -> Result<Vec<u8>> {
+pub fn generate_mac() -> Result<Vec<u8>> {
     let mut rng = rand::thread_rng();
     let mut buf = [0u8; 6];
     rng.fill(&mut buf[..]);
@@ -144,7 +144,7 @@ mod tests {
 
     #[test]
     fn test_generate_mac_addr() {
-        let mac_addr = generate_mac_addr().unwrap();
+        let mac_addr = generate_mac().unwrap();
         assert_eq!(mac_addr.len(), 6);
         assert_eq!(mac_addr[0] & 0x01, 0);
         assert_eq!(mac_addr[0] & 0x02, 2);

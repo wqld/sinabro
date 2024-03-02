@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    mem,
     ops::{Deref, DerefMut},
     vec,
 };
@@ -420,6 +421,7 @@ pub struct RouteAttrHeader {
     pub rta_type: u16, // TODO: use enum
 }
 
+/// TODO: `Payload` should be changed to use `&'a mut [u8]` instead of `Vec<u8>`
 #[derive(Default, Debug, PartialEq)]
 pub struct Payload(Vec<u8>);
 
@@ -591,6 +593,37 @@ impl NeighborMessage {
             flags,
             neigh_type,
         }
+    }
+}
+
+pub struct Buffer<'a>(&'a mut [u8]);
+
+impl<'a> From<&'a mut [u8]> for Buffer<'a> {
+    fn from(buf: &'a mut [u8]) -> Self {
+        Self(buf)
+    }
+}
+
+impl<'a> Deref for Buffer<'a> {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl<'a> Buffer<'a> {
+    pub fn take<'s>(&'s mut self, len: usize) -> Option<&'a mut [u8]> {
+        if len > self.len() {
+            return None;
+        }
+
+        let buf = mem::take(&mut self.0);
+        let (taken, rest) = buf.split_at_mut(len);
+
+        self.0 = rest;
+
+        Some(taken)
     }
 }
 

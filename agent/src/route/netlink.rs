@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::Result;
 use ipnet::IpNet;
-use sinabro_config::generate_mac_addr;
+use sinabro_config::generate_mac;
 use sinabro_netlink::route::{
     addr::AddressBuilder,
     link::{Kind, Link, LinkAttrs, VxlanAttrs},
@@ -49,7 +49,7 @@ impl Netlink {
         vtep_index: u32,
         pod_cidr: &IpNet,
     ) -> Result<i32> {
-        let vxlan_mac = generate_mac_addr()?;
+        let vxlan_mac = generate_mac()?;
         let host_ip_bytes = match host_ip.parse::<IpAddr>()? {
             IpAddr::V4(ip) => ip.octets().to_vec(),
             IpAddr::V6(ip) => ip.octets().to_vec(),
