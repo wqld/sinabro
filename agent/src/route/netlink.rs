@@ -1,11 +1,11 @@
 use std::{
-    net::IpAddr,
+    net::{IpAddr, Ipv4Addr, Ipv6Addr},
     ops::{Deref, DerefMut},
 };
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use ipnet::IpNet;
-use sinabro_config::generate_mac_addr;
+use sinabro_config::generate_mac;
 use sinabro_netlink::route::{
     addr::AddressBuilder,
     link::{Kind, Link, LinkAttrs, VxlanAttrs},
@@ -17,12 +17,17 @@ use tracing::{error, info};
 use crate::{context::Context, node_route::NodeRoute};
 
 const RTNH_F_ONLINK: u32 = 0x4;
+const BRIDGE_NAME: &str = "cni0";
 
-pub struct Netlink {
+#[derive(Default)]
+pub struct Netlink<'a> {
     pub netlink: sinabro_netlink::netlink::Netlink,
+    pub host_ip: Option<&'a str>,
+    pub pod_cidr: Option<&'a IpNet>,
+    pub node_routes: Option<&'a [NodeRoute]>,
 }
 
-impl Deref for Netlink {
+impl<'a> Deref for Netlink<'a> {
     type Target = sinabro_netlink::netlink::Netlink;
 
     fn deref(&self) -> &Self::Target {
@@ -30,26 +35,58 @@ impl Deref for Netlink {
     }
 }
 
-impl DerefMut for Netlink {
+impl<'a> DerefMut for Netlink<'a> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.netlink
     }
 }
 
-impl Netlink {
+impl<'a> Netlink<'a> {
     pub fn new() -> Self {
-        Netlink {
+        Self {
             netlink: sinabro_netlink::netlink::Netlink::new(),
+            ..Default::default()
         }
     }
 
-    pub fn setup_vxlan_device(
-        &mut self,
-        host_ip: &str,
-        vtep_index: u32,
-        pod_cidr: &IpNet,
-    ) -> Result<i32> {
-        let vxlan_mac = generate_mac_addr()?;
+    pub fn init(host_ip: &'a str, pod_cidr: &'a IpNet, node_routes: &'a [NodeRoute]) -> Self {
+        Self {
+            netlink: sinabro_netlink::netlink::Netlink::new(),
+            host_ip: Some(host_ip),
+            pod_cidr: Some(pod_cidr),
+            node_routes: Some(node_routes),
+        }
+    }
+
+    pub fn setup_bridge(&mut self) -> Result<i32> {
+        let pod_cidr = self.pod_cidr.ok_or(anyhow!("pod_cidr is not set"))?;
+        let ip_addr = Self::get_ip_addr(pod_cidr);
+        let bridge = self.ensure_link(&Kind::new_bridge(BRIDGE_NAME))?;
+        let address = AddressBuilder::default()
+            .ip(IpNet::new(ip_addr, pod_cidr.prefix_len())?)
+            .build()?;
+
+        if let Err(e) = self.addr_add(&bridge, &address) {
+            if e.to_string().contains("File exists") {
+                info!("cni0 interface already has an ip address");
+            } else {
+                return Err(e);
+            }
+        }
+
+        Ok(bridge.attrs().index)
+    }
+
+    pub fn setup_vxlan(&mut self) -> Result<i32> {
+        let host_ip = self.host_ip.ok_or(anyhow!("host_ip is not set"))?;
+        let pod_cidr = self.pod_cidr.ok_or(anyhow!("pod_cidr is not set"))?;
+
+        let eth0_attrs = LinkAttrs::new("eth0");
+        let eth0 = self.link_get(&eth0_attrs)?;
+        let vtep_index = eth0.attrs().index as u32;
+        self.link_up(&eth0)?;
+
+        let vxlan_mac = generate_mac()?;
         let host_ip_bytes = match host_ip.parse::<IpAddr>()? {
             IpAddr::V4(ip) => ip.octets().to_vec(),
             IpAddr::V6(ip) => ip.octets().to_vec(),
@@ -86,28 +123,27 @@ impl Netlink {
         Ok(vxlan.attrs().index)
     }
 
-    pub fn initialize_overlay(
-        &mut self,
-        vxlan_index: i32,
-        host_ip: &str,
-        node_routes: &[NodeRoute],
-    ) -> Result<()> {
-        node_routes
-            .iter()
-            .filter(|node_route| node_route.ip != host_ip)
-            .for_each(|node_route| {
-                let node_route_pod_cidr = node_route.pod_cidr.clone();
-                let node_route_ip = node_route.ip.clone();
+    pub fn initialize_overlay(&mut self, vxlan_index: i32) -> Result<()> {
+        let host_ip = self.host_ip.ok_or(anyhow!("host_ip is not set"))?;
 
-                tokio::spawn(async move {
-                    Self::setup_route_and_neighbors(
-                        node_route_ip.as_str(),
-                        node_route_pod_cidr.as_str(),
-                        vxlan_index,
-                    )
-                    .await
+        if let Some(node_routes) = self.node_routes {
+            node_routes
+                .iter()
+                .filter(|node_route| node_route.ip != host_ip)
+                .for_each(|node_route| {
+                    let node_route_pod_cidr = node_route.pod_cidr.clone();
+                    let node_route_ip = node_route.ip.clone();
+
+                    tokio::spawn(async move {
+                        Self::setup_route_and_neighbors(
+                            &node_route_ip,
+                            &node_route_pod_cidr,
+                            vxlan_index,
+                        )
+                        .await
+                    });
                 });
-            });
+        }
 
         Ok(())
     }
@@ -175,5 +211,18 @@ impl Netlink {
 
         info!("completed setting up routes and neighbors for {}", node_ip);
         Ok(())
+    }
+
+    fn get_ip_addr(ip_net: &IpNet) -> IpAddr {
+        match ip_net {
+            IpNet::V4(v4) => {
+                let net = u32::from(v4.network()) + 1;
+                IpAddr::V4(Ipv4Addr::from(net))
+            }
+            IpNet::V6(v6) => {
+                let net = u128::from(v6.network()) + 1;
+                IpAddr::V6(Ipv6Addr::from(net))
+            }
+        }
     }
 }

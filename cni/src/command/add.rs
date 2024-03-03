@@ -6,7 +6,7 @@ use ipnet::IpNet;
 use nix::sched::{setns, CloneFlags};
 use rand::Rng;
 use serde::Serialize;
-use sinabro_config::{generate_mac_addr, Config};
+use sinabro_config::{generate_mac, Config};
 use sinabro_netlink::{
     netlink::Netlink,
     route::{
@@ -45,12 +45,12 @@ impl CniCommand for AddCommand {
         let mut veth_attr = LinkAttrs::new(&veth_name);
         veth_attr.mtu = 1500;
         veth_attr.tx_queue_len = 1000;
-        veth_attr.hw_addr = generate_mac_addr()?;
+        veth_attr.hw_addr = generate_mac()?;
 
         let veth = Kind::Veth {
             attrs: veth_attr.clone(),
             peer_name: peer_name.clone(),
-            peer_hw_addr: Some(generate_mac_addr()?),
+            peer_hw_addr: Some(generate_mac()?),
             peer_ns: None,
         };
 

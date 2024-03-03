@@ -5,15 +5,16 @@ mod route;
 mod server;
 
 use std::env;
-use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
-
 use std::sync::Arc;
 
+use anyhow::Result;
+use aya_log::BpfLogger;
+use bpf_loader::BpfLoader;
 use clap::Parser;
 use ipnet::IpNet;
-use log::{debug, info};
-use sinabro_netlink::route::addr::AddressBuilder;
-use sinabro_netlink::route::link::{Kind, Link, LinkAttrs};
+use node_route::NodeRoute;
+use server::api_server;
+use sinabro_config::{setup_tracing_to_stdout, Config};
 use tokio::sync::Notify;
 use tracing::Level;
 
@@ -27,92 +28,74 @@ struct Opt {
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() -> Result<()> {
+    setup_tracing_to_stdout(Level::DEBUG);
+
     let opt = Opt::parse();
-
-    sinabro_config::setup_tracing_to_stdout(Level::DEBUG);
-
     let context = Context::new().await?;
 
-    let host_ip = env::var("HOST_IP").expect("HOST_IP is not set");
-    debug!("host ip: {}", host_ip);
-
     let node_routes = context.get_node_routes().await?;
-    debug!("node routes: {:?}", node_routes);
+    let cluster_cidr = context.get_cluster_cidr().await?;
+    let host_ip = get_host_ip()?;
+    let host_route = find_host_route(&node_routes, &host_ip)?;
 
-    let host_route = node_routes
+    setup_network(&host_ip, host_route, &node_routes)?;
+    setup_cni_config(&cluster_cidr, &host_route.pod_cidr)?;
+
+    let mut bpf_loader = BpfLoader::load(&opt.iface)?;
+    let node_ips = get_node_ips(&node_routes);
+
+    BpfLogger::init(&mut bpf_loader.bpf)?;
+
+    bpf_loader
+        .attach(&host_ip, &cluster_cidr, &node_ips)
+        .await?;
+
+    start_api_server(&host_route.pod_cidr).await?;
+
+    Ok(())
+}
+
+fn get_host_ip() -> Result<String> {
+    env::var("HOST_IP").map_err(|_| anyhow::anyhow!("HOST_IP is not set"))
+}
+
+fn find_host_route<'a>(node_routes: &'a [NodeRoute], host_ip: &str) -> Result<&'a NodeRoute> {
+    node_routes
         .iter()
         .find(|node_route| node_route.ip == host_ip)
-        .ok_or_else(|| anyhow::anyhow!("failed to find node route"))?;
-    debug!("host route: {:?}", host_route);
+        .ok_or_else(|| anyhow::anyhow!("failed to find node route"))
+}
 
-    let pod_cidr_ip_net = host_route.pod_cidr.parse::<IpNet>()?;
-    let bridge_ip = match pod_cidr_ip_net {
-        IpNet::V4(v4) => {
-            let net = u32::from(v4.network()) + 1;
-            IpAddr::V4(Ipv4Addr::from(net))
-        }
-        IpNet::V6(v6) => {
-            let net = u128::from(v6.network()) + 1;
-            IpAddr::V6(Ipv6Addr::from(net))
-        }
-    };
-    let bridge_ip = IpNet::new(bridge_ip, pod_cidr_ip_net.prefix_len())?;
-    let bridge_ip = format!("{:?}", bridge_ip);
-    debug!("bridge ip: {}", bridge_ip);
+fn setup_network(host_ip: &str, host_route: &NodeRoute, node_routes: &[NodeRoute]) -> Result<()> {
+    let pod_cidr = host_route.pod_cidr.parse::<IpNet>()?;
+    let mut netlink = Netlink::init(host_ip, &pod_cidr, node_routes);
+    let _ = netlink.setup_bridge()?;
+    let vxlan_index = netlink.setup_vxlan()?;
+    netlink.initialize_overlay(vxlan_index)?;
 
-    let cluster_cidr = context.get_cluster_cidr().await?;
-    debug!("cluster cidr: {}", cluster_cidr);
+    Ok(())
+}
 
-    let bridge_name = "cni0";
+fn setup_cni_config(cluster_cidr: &str, pod_cidr: &str) -> Result<()> {
+    Config::new(cluster_cidr, pod_cidr).write("/etc/cni/net.d/10-sinabro.conf")?;
+    Ok(())
+}
 
-    let mut netlink = Netlink::new();
-
-    let bridge = Kind::new_bridge(bridge_name);
-    let bridge = netlink.ensure_link(&bridge)?;
-
-    let address = AddressBuilder::default()
-        .ip(bridge_ip.as_str().parse::<IpNet>()?)
-        .build()?;
-
-    if let Err(e) = netlink.addr_add(&bridge, &address) {
-        if e.to_string().contains("File exists") {
-            info!("cni0 interface already has an ip address");
-        } else {
-            return Err(e);
-        }
-    }
-
-    let eth0_attrs = LinkAttrs::new("eth0");
-    let eth0 = netlink.link_get(&eth0_attrs)?;
-    let eth0_index = eth0.attrs().index as u32;
-    netlink.link_up(&eth0)?;
-
-    let vxlan_index = netlink.setup_vxlan_device(&host_ip, eth0_index, &pod_cidr_ip_net)?;
-    netlink.initialize_overlay(vxlan_index, &host_ip, &node_routes)?;
-
-    sinabro_config::Config::new(&cluster_cidr, &host_route.pod_cidr)
-        .write("/etc/cni/net.d/10-sinabro.conf")?;
-
-    let pod_cidr = host_route.pod_cidr.clone();
-    let store_path = "/var/lib/sinabro/ip_store"; // TODO: make this configurable
-    let shutdown = Arc::new(Notify::new());
-    let node_ips: Vec<String> = node_routes
+fn get_node_ips(node_routes: &[NodeRoute]) -> Vec<String> {
+    node_routes
         .iter()
         .map(|node_route| node_route.ip.clone())
-        .collect();
+        .collect()
+}
 
-    let bpf_loader = bpf_loader::BpfLoader::new(&opt.iface);
-    bpf_loader
-        .load(
-            &host_ip,
-            &cluster_cidr,
-            &pod_cidr,
-            &node_ips,
-            store_path,
-            shutdown,
-        )
-        .await?;
+async fn start_api_server(pod_cidr: &str) -> Result<()> {
+    let store_path = "/var/lib/sinabro/ip_store"; // TODO: make this configurable
+    let shutdown = Arc::new(Notify::new());
+
+    api_server::start(pod_cidr, store_path, shutdown)
+        .await
+        .unwrap();
 
     Ok(())
 }
