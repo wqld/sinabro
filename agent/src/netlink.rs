@@ -12,9 +12,10 @@ use sinabro_netlink::route::{
     neigh::NeighborBuilder,
     routing::{RoutingBuilder, Via},
 };
+use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
-use crate::{context::Context, node_route::NodeRoute};
+use crate::{kube::Context, node_route::NodeRoute};
 
 const RTNH_F_ONLINK: u32 = 0x4;
 const BRIDGE_NAME: &str = "cni0";
@@ -154,7 +155,8 @@ impl<'a> Netlink<'a> {
         vxlan_index: i32,
     ) -> Result<()> {
         let mut netlink = Netlink::new();
-        let context = Context::new().await?;
+        let token = CancellationToken::new();
+        let context = Context::new(token).await?;
         let pod_cidr_ip_net = pod_cidr.parse::<IpNet>()?;
 
         let route = RoutingBuilder::default()

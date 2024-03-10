@@ -1,20 +1,17 @@
-use std::sync::Arc;
-
+use anyhow::Result;
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
     routing::{get, put},
     Router,
 };
-use tokio::{
-    signal::{self},
-    sync::Notify,
-};
+use tokio::signal::{self};
+use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 use super::{ipam::Ipam, state::AppState};
 
-pub async fn start(pod_cidr: &str, store_path: &str, shutdown: Arc<Notify>) -> anyhow::Result<()> {
+pub async fn start(pod_cidr: &str, store_path: &str, shutdown: CancellationToken) -> Result<()> {
     let ipam = Ipam::new(pod_cidr, store_path);
     let ipam_clone = ipam.clone();
 
@@ -52,7 +49,7 @@ async fn insert(State(ipam): State<Ipam>, Path(ip): Path<String>) {
     ipam.insert(&ip);
 }
 
-async fn shutdown_signal(shutdown: Arc<Notify>) {
+async fn shutdown_signal(shutdown: CancellationToken) {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
@@ -73,12 +70,14 @@ async fn shutdown_signal(shutdown: Arc<Notify>) {
     tokio::select! {
         _ = ctrl_c => {}
         _ = terminate => {}
-        _ = shutdown.notified() => {}
+        _ = shutdown.cancelled() => {}
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
     use axum::{
         body::Body,
@@ -93,7 +92,7 @@ mod tests {
         let tmp_dir = tempfile::tempdir().unwrap();
         let store_path = Arc::new(tmp_dir.path().join("ip_store"));
         let store_path_clone = store_path.clone();
-        let shutdown = Arc::new(Notify::new());
+        let shutdown = CancellationToken::new();
         let shutdown_clone = shutdown.clone();
 
         let server = tokio::spawn(async move {
@@ -104,7 +103,7 @@ mod tests {
 
         let notify = tokio::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(1)).await;
-            shutdown.notify_one();
+            shutdown.cancel();
         });
 
         tokio::try_join!(server, notify).unwrap();

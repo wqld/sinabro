@@ -2,24 +2,27 @@ use std::fmt::Debug;
 
 use anyhow::{anyhow, bail, Result};
 use futures::{StreamExt, TryStreamExt};
-use k8s_openapi::api::core::v1::{ConfigMap, Node, Pod};
+use k8s_openapi::api::core::v1::{ConfigMap, Node, Pod, Service};
 use kube::{
     api::{AttachParams, AttachedProcess, ListParams, WatchEvent, WatchParams},
+    runtime::{watcher, WatchStreamExt},
     Api, ResourceExt,
 };
 use sinabro_config::parse_mac;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::node_route::NodeRoute;
 
 pub struct Context {
     client: kube::Client,
+    token: CancellationToken,
 }
 
 impl Context {
-    pub async fn new() -> Result<Self> {
+    pub async fn new(token: CancellationToken) -> Result<Self> {
         let client = kube::Client::try_default().await?;
-        Ok(Self { client })
+        Ok(Self { client, token })
     }
 
     pub async fn get_cluster_cidr(&self) -> Result<String> {
@@ -72,6 +75,23 @@ impl Context {
         }
 
         bail!("failed to get vxlan mac address")
+    }
+
+    pub async fn watch_service_resource(&self) -> Result<()> {
+        let services: Api<Service> = Api::all(self.client.clone());
+        let watch_future = watcher(services, watcher::Config::default())
+            .default_backoff()
+            .try_for_each(|s| async move {
+                info!("Service event: {:?}", s);
+                Ok(())
+            });
+
+        tokio::select! {
+            _ = watch_future => {},
+            _ = self.token.cancelled() => {}
+        }
+
+        Ok(())
     }
 
     async fn watch_pod_until_running(pods: &Api<Pod>, name: &str) -> Result<()> {
@@ -177,7 +197,8 @@ mod tests {
         });
 
         let client = kube::Client::new(mock_service, "test-namespace");
-        let context = Context { client };
+        let token = CancellationToken::new();
+        let context = Context { client, token };
         let cluster_cidr = context.get_cluster_cidr().await.unwrap();
         assert_eq!(cluster_cidr, "10.244.0.0/16");
 
@@ -268,7 +289,8 @@ mod tests {
         });
 
         let client = kube::Client::new(mock_service, "test-namespace");
-        let context = Context { client };
+        let token = CancellationToken::new();
+        let context = Context { client, token };
         let node_routes = context.get_node_routes().await.unwrap();
         assert_eq!(node_routes.len(), 2);
         assert_eq!(node_routes[0].ip, "172.18.0.3");
