@@ -63,6 +63,7 @@ pub enum Kind {
         attrs: LinkAttrs,
         vxlan_attrs: VxlanAttrs,
     },
+    Wireguard(LinkAttrs),
 }
 
 impl From<&[u8]> for Kind {
@@ -194,6 +195,7 @@ impl From<&[u8]> for Kind {
                     },
                 }
             }
+            "wireguard" => Kind::Wireguard(base),
             "dummy" => Kind::Dummy(base),
             _ => Kind::Device(base),
         }
@@ -277,6 +279,7 @@ impl Link for Kind {
             Kind::Bridge { .. } => "bridge",
             Kind::Veth { .. } => "veth",
             Kind::Vxlan { .. } => "vxlan",
+            Kind::Wireguard(_) => "wireguard",
         }
     }
 
@@ -287,6 +290,7 @@ impl Link for Kind {
             Kind::Bridge { attrs, .. } => attrs,
             Kind::Veth { attrs, .. } => attrs,
             Kind::Vxlan { attrs, .. } => attrs,
+            Kind::Wireguard(attrs) => attrs,
         }
     }
 
@@ -297,6 +301,7 @@ impl Link for Kind {
             Kind::Bridge { attrs, .. } => attrs,
             Kind::Veth { attrs, .. } => attrs,
             Kind::Vxlan { attrs, .. } => attrs,
+            Kind::Wireguard(attrs) => attrs,
         }
     }
 
