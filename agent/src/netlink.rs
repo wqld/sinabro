@@ -5,13 +5,13 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use ipnet::IpNet;
-use sinabro_config::generate_mac;
-use sinabro_netlink::route::{
+use rsln::route::{
     addr::AddressBuilder,
     link::{Kind, Link, LinkAttrs, VxlanAttrs},
     neigh::NeighborBuilder,
     routing::{RoutingBuilder, Via},
 };
+use sinabro_config::generate_mac;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -22,14 +22,14 @@ const BRIDGE_NAME: &str = "cni0";
 
 #[derive(Default)]
 pub struct Netlink<'a> {
-    pub netlink: sinabro_netlink::netlink::Netlink,
+    pub netlink: rsln::netlink::Netlink,
     pub host_ip: Option<&'a str>,
     pub pod_cidr: Option<&'a IpNet>,
     pub node_routes: Option<&'a [NodeRoute]>,
 }
 
 impl<'a> Deref for Netlink<'a> {
-    type Target = sinabro_netlink::netlink::Netlink;
+    type Target = rsln::netlink::Netlink;
 
     fn deref(&self) -> &Self::Target {
         &self.netlink
@@ -45,14 +45,14 @@ impl<'a> DerefMut for Netlink<'a> {
 impl<'a> Netlink<'a> {
     pub fn new() -> Self {
         Self {
-            netlink: sinabro_netlink::netlink::Netlink::new(),
+            netlink: rsln::netlink::Netlink::new(),
             ..Default::default()
         }
     }
 
     pub fn init(host_ip: &'a str, pod_cidr: &'a IpNet, node_routes: &'a [NodeRoute]) -> Self {
         Self {
-            netlink: sinabro_netlink::netlink::Netlink::new(),
+            netlink: rsln::netlink::Netlink::new(),
             host_ip: Some(host_ip),
             pod_cidr: Some(pod_cidr),
             node_routes: Some(node_routes),

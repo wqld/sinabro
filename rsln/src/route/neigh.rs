@@ -60,9 +60,10 @@ impl NeighborBuilder {
 
 #[cfg(test)]
 mod tests {
-    use sinabro_config::parse_mac;
-
-    use crate::route::message::{Payload, RouteAttr, RouteAttrHeader};
+    use crate::{
+        parse_mac,
+        route::message::{Payload, RouteAttr, RouteAttrHeader},
+    };
 
     use super::*;
 

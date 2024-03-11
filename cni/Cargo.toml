@@ -7,7 +7,7 @@ edition = "2021"
 
 [dependencies]
 sinabro-config = { path = "../config" }
-sinabro-netlink = { path = "../netlink" }
+rsln = { path = "../rsln" }
 
 anyhow = "1.0"
 async-trait = "0.1"
