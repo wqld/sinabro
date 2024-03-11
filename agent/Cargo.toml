@@ -1,6 +1,6 @@
 [package]
 name = "sinabro"
-version = "0.0.1"
+version = "0.0.2"
 authors = ["Wongyu Lee <kyu21@outlook.com>"]
 description = "eBPF-based Networking, Security, and Observability"
 license = "Apache-2.0"
@@ -12,7 +12,7 @@ ws = ["kube/ws"]
 
 [dependencies]
 sinabro-config = { path = "../config" }
-sinabro-netlink = { path = "../netlink" }
+rsln = { path = "../rsln" }
 
 axum = "0.7.2"
 aya = { git = "https://github.com/aya-rs/aya", rev = "1979da92a722bacd9c984865a4c7108e22fb618f", features = [

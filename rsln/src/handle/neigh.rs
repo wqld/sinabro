@@ -77,9 +77,8 @@ impl NeighHandle<'_> {
 
 #[cfg(test)]
 mod tests {
-    use sinabro_config::parse_mac;
-
     use crate::{
+        parse_mac,
         route::{
             link::{Kind, LinkAttrs},
             neigh::NeighborBuilder,

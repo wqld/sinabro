@@ -4,11 +4,11 @@ use anyhow::Result;
 use async_trait::async_trait;
 use nix::sched::{setns, CloneFlags};
 use reqwest::Client;
-use sinabro_config::Config;
-use sinabro_netlink::{
+use rsln::{
     netlink::Netlink,
     route::{addr::AddrFamily, link::LinkAttrs},
 };
+use sinabro_config::Config;
 use tokio::task::spawn_blocking;
 use tracing::{debug, info};
 

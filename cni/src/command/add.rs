@@ -5,9 +5,7 @@ use async_trait::async_trait;
 use ipnet::IpNet;
 use nix::sched::{setns, CloneFlags};
 use rand::Rng;
-use serde::Serialize;
-use sinabro_config::{generate_mac, Config};
-use sinabro_netlink::{
+use rsln::{
     netlink::Netlink,
     route::{
         addr::AddressBuilder,
@@ -15,6 +13,8 @@ use sinabro_netlink::{
         routing::RoutingBuilder,
     },
 };
+use serde::Serialize;
+use sinabro_config::{generate_mac, Config};
 use tokio::task::spawn_blocking;
 use tracing::info;
 
