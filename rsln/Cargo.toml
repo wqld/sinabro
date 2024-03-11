@@ -2,6 +2,7 @@
 name = "rsln"
 version = "0.0.1"
 edition = "2021"
+description = "Implements the netlink protocol based kernel interfaces required by the sinabro project in Rust"
 
 [dependencies]
 anyhow = "1.0"
