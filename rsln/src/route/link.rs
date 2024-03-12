@@ -44,7 +44,6 @@ pub struct VxlanAttrs {
 
 #[derive(Debug)]
 pub enum Kind {
-    Device(LinkAttrs),
     Dummy(LinkAttrs),
     Bridge {
         attrs: LinkAttrs,
@@ -64,6 +63,10 @@ pub enum Kind {
         vxlan_attrs: VxlanAttrs,
     },
     Wireguard(LinkAttrs),
+    GenericLink {
+        attrs: LinkAttrs,
+        link_type: String,
+    },
 }
 
 impl From<&[u8]> for Kind {
@@ -197,7 +200,10 @@ impl From<&[u8]> for Kind {
             }
             "wireguard" => Kind::Wireguard(base),
             "dummy" => Kind::Dummy(base),
-            _ => Kind::Device(base),
+            _ => Kind::GenericLink {
+                link_type: base.link_type.clone(),
+                attrs: base,
+            },
         }
     }
 }
@@ -272,36 +278,39 @@ impl LinkAttrs {
 }
 
 impl Link for Kind {
-    fn link_type(&self) -> &'static str {
+    fn link_type(&self) -> &str {
         match self {
-            Kind::Device(_) => "device",
             Kind::Dummy(_) => "dummy",
             Kind::Bridge { .. } => "bridge",
             Kind::Veth { .. } => "veth",
             Kind::Vxlan { .. } => "vxlan",
             Kind::Wireguard(_) => "wireguard",
+            Kind::GenericLink {
+                attrs: _,
+                link_type,
+            } => link_type,
         }
     }
 
     fn attrs(&self) -> &LinkAttrs {
         match self {
-            Kind::Device(attrs) => attrs,
             Kind::Dummy(attrs) => attrs,
             Kind::Bridge { attrs, .. } => attrs,
             Kind::Veth { attrs, .. } => attrs,
             Kind::Vxlan { attrs, .. } => attrs,
             Kind::Wireguard(attrs) => attrs,
+            Kind::GenericLink { attrs, .. } => attrs,
         }
     }
 
     fn attrs_mut(&mut self) -> &mut LinkAttrs {
         match self {
-            Kind::Device(attrs) => attrs,
             Kind::Dummy(attrs) => attrs,
             Kind::Bridge { attrs, .. } => attrs,
             Kind::Veth { attrs, .. } => attrs,
             Kind::Vxlan { attrs, .. } => attrs,
             Kind::Wireguard(attrs) => attrs,
+            Kind::GenericLink { attrs, .. } => attrs,
         }
     }
 
