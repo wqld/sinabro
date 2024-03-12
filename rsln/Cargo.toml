@@ -3,6 +3,7 @@ name = "rsln"
 version = "0.0.1"
 edition = "2021"
 license = "Apache-2.0"
+repository = "https://github.com/wqld/sinabro/tree/main/rsln"
 description = "Implements the netlink protocol based kernel interfaces required by the sinabro project in Rust"
 
 [dependencies]
