@@ -149,7 +149,7 @@ impl Header {
 
 #[cfg(test)]
 mod tests {
-    use crate::route::message::{Attribute, RouteAttr};
+    use crate::types::message::{Attribute, RouteAttr};
 
     use super::*;
 

@@ -3,7 +3,7 @@ use std::net::IpAddr;
 use anyhow::Result;
 use derive_builder::Builder;
 
-use crate::route::message::{Attribute, NeighborMessage, RouteAttrs};
+use crate::types::message::{Attribute, NeighborMessage, RouteAttrs};
 
 use super::vec_to_addr;
 
@@ -62,7 +62,7 @@ impl NeighborBuilder {
 mod tests {
     use crate::{
         parse_mac,
-        route::message::{Payload, RouteAttr, RouteAttrHeader},
+        types::message::{Payload, RouteAttr, RouteAttrHeader},
     };
 
     use super::*;

@@ -5,8 +5,9 @@ use sysctl::Sysctl;
 
 use crate::{
     handle::sock_handle::SocketHandle,
-    route::{
+    types::{
         addr::{AddrCmd, AddrFamily, Address},
+        generic::{GenlFamilies, GenlFamily},
         link::{Link, LinkAttrs},
         neigh::Neighbor,
         routing::{Routing, RtCmd},
@@ -201,13 +202,29 @@ impl Netlink {
                 libc::NLM_F_CREATE | libc::NLM_F_REPLACE | libc::NLM_F_ACK,
             )
     }
+
+    pub fn genl_family_list(&mut self) -> Result<GenlFamilies> {
+        self.sockets
+            .entry(libc::NETLINK_GENERIC)
+            .or_insert(SocketHandle::new(libc::NETLINK_GENERIC))
+            .handle_generic()
+            .list_family()
+    }
+
+    pub fn genl_family_get(&mut self, name: &str) -> Result<GenlFamily> {
+        self.sockets
+            .entry(libc::NETLINK_GENERIC)
+            .or_insert(SocketHandle::new(libc::NETLINK_GENERIC))
+            .handle_generic()
+            .get_family(name)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use crate::{
-        route::link::{Kind, VxlanAttrs},
         test_setup,
+        types::link::{Kind, VxlanAttrs},
     };
 
     use super::*;

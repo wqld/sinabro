@@ -80,67 +80,30 @@ impl From<&[u8]> for Kind {
         for attr in attrs {
             match attr.header.rta_type {
                 libc::IFLA_LINKINFO => {
-                    for attr in RouteAttrs::from(attr.payload.as_slice()) {
-                        match attr.header.rta_type {
-                            libc::IFLA_INFO_KIND => {
-                                base.link_type =
-                                    attr.payload.to_string(attr.payload.len() - 1).unwrap();
-                            }
-                            libc::IFLA_INFO_DATA => {
-                                data = RouteAttrs::from(attr.payload.as_slice());
-                            }
+                    for a in RouteAttrs::from(attr.payload.as_slice()) {
+                        match a.header.rta_type {
+                            libc::IFLA_INFO_KIND => base.link_type = a.payload.to_string().unwrap(),
+                            libc::IFLA_INFO_DATA => data = RouteAttrs::from(a.payload.as_slice()),
                             _ => {}
                         }
                     }
                 }
-                libc::IFLA_ADDRESS => {
-                    base.hw_addr = (*attr.payload).to_vec();
-                }
-                libc::IFLA_IFNAME => {
-                    base.name = attr.payload.to_string(attr.payload.len() - 1).unwrap();
-                }
-                libc::IFLA_MTU => {
-                    base.mtu = attr.payload.to_u32(4).unwrap();
-                }
-                libc::IFLA_LINK => {
-                    base.parent_index = attr.payload.to_i32(4).unwrap();
-                }
-                libc::IFLA_MASTER => {
-                    base.master_index = attr.payload.to_i32(4).unwrap();
-                }
-                libc::IFLA_TXQLEN => {
-                    base.tx_queue_len = attr.payload.to_i32(4).unwrap();
-                }
-                libc::IFLA_IFALIAS => {
-                    base.alias = attr.payload.to_string(attr.payload.len() - 1).unwrap();
-                }
-                libc::IFLA_OPERSTATE => {
-                    base.oper_state = attr.payload[0];
-                }
-                libc::IFLA_PHYS_SWITCH_ID => {
-                    base.phys_switch_id = attr.payload.to_i32(4).unwrap();
-                }
-                libc::IFLA_LINK_NETNSID => {
-                    base.netns_id = attr.payload.to_i32(4).unwrap();
-                }
-                libc::IFLA_GSO_MAX_SIZE => {
-                    base.gso_max_size = attr.payload.to_u32(4).unwrap();
-                }
-                libc::IFLA_GSO_MAX_SEGS => {
-                    base.gso_max_segs = attr.payload.to_u32(4).unwrap();
-                }
-                libc::IFLA_GRO_MAX_SIZE => {
-                    base.gro_max_size = attr.payload.to_u32(4).unwrap();
-                }
-                libc::IFLA_NUM_TX_QUEUES => {
-                    base.num_tx_queues = attr.payload.to_i32(4).unwrap();
-                }
-                libc::IFLA_NUM_RX_QUEUES => {
-                    base.num_rx_queues = attr.payload.to_i32(4).unwrap();
-                }
-                libc::IFLA_GROUP => {
-                    base.group = attr.payload.to_u32(4).unwrap();
-                }
+                libc::IFLA_ADDRESS => base.hw_addr = (*attr.payload).to_vec(),
+                libc::IFLA_IFNAME => base.name = attr.payload.to_string().unwrap(),
+                libc::IFLA_MTU => base.mtu = attr.payload.to_u32().unwrap(),
+                libc::IFLA_LINK => base.parent_index = attr.payload.to_i32().unwrap(),
+                libc::IFLA_MASTER => base.master_index = attr.payload.to_i32().unwrap(),
+                libc::IFLA_TXQLEN => base.tx_queue_len = attr.payload.to_i32().unwrap(),
+                libc::IFLA_IFALIAS => base.alias = attr.payload.to_string().unwrap(),
+                libc::IFLA_OPERSTATE => base.oper_state = attr.payload[0],
+                libc::IFLA_PHYS_SWITCH_ID => base.phys_switch_id = attr.payload.to_i32().unwrap(),
+                libc::IFLA_LINK_NETNSID => base.netns_id = attr.payload.to_i32().unwrap(),
+                libc::IFLA_GSO_MAX_SIZE => base.gso_max_size = attr.payload.to_u32().unwrap(),
+                libc::IFLA_GSO_MAX_SEGS => base.gso_max_segs = attr.payload.to_u32().unwrap(),
+                libc::IFLA_GRO_MAX_SIZE => base.gro_max_size = attr.payload.to_u32().unwrap(),
+                libc::IFLA_NUM_TX_QUEUES => base.num_tx_queues = attr.payload.to_i32().unwrap(),
+                libc::IFLA_NUM_RX_QUEUES => base.num_rx_queues = attr.payload.to_i32().unwrap(),
+                libc::IFLA_GROUP => base.group = attr.payload.to_u32().unwrap(),
                 _ => {}
             }
         }

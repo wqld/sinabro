@@ -55,7 +55,7 @@ pub struct Address {
 impl From<&[u8]> for Address {
     fn from(buf: &[u8]) -> Self {
         let addr_msg: AddressMessage = bincode::deserialize(buf).unwrap();
-        let rt_attrs = RouteAttrs::from(&buf[addr_msg.len()..]);
+        let attrs = RouteAttrs::from(&buf[addr_msg.len()..]);
 
         let mut addr = Self {
             index: addr_msg.index,
@@ -63,7 +63,7 @@ impl From<&[u8]> for Address {
             ..Default::default()
         };
 
-        for attr in rt_attrs {
+        for attr in attrs {
             match attr.header.rta_type {
                 libc::IFA_ADDRESS => {
                     addr.update_address(&attr.payload, addr_msg.prefix_len)
@@ -88,7 +88,7 @@ impl Address {
 
 #[cfg(test)]
 mod tests {
-    use crate::route::message::{Payload, RouteAttr, RouteAttrHeader};
+    use crate::types::message::{Payload, RouteAttr, RouteAttrHeader};
 
     use super::*;
 

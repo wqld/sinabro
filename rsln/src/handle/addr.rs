@@ -8,7 +8,7 @@ use ipnet::IpNet;
 
 use crate::{
     core::message::Message,
-    route::{
+    types::{
         addr::Address,
         link::Link,
         message::{AddressMessage, Attribute, RouteAttr},
@@ -144,8 +144,8 @@ impl AddrHandle<'_> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        route::{addr::AddressBuilder, link::LinkAttrs},
         test_setup,
+        types::{addr::AddressBuilder, link::LinkAttrs},
     };
 
     #[test]

@@ -124,7 +124,7 @@ impl Via {
 
 #[cfg(test)]
 mod tests {
-    use crate::route::message::{Payload, RouteAttr, RouteAttrHeader};
+    use crate::types::message::{Payload, RouteAttr, RouteAttrHeader};
 
     use super::*;
 

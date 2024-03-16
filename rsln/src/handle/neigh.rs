@@ -7,7 +7,7 @@ use anyhow::{anyhow, Result};
 
 use crate::{
     core::message::Message,
-    route::{
+    types::{
         message::{Attribute, NeighborMessage, RouteAttr},
         neigh::Neighbor,
     },
@@ -78,12 +78,11 @@ impl NeighHandle<'_> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        parse_mac,
-        route::{
+        parse_mac, test_setup,
+        types::{
             link::{Kind, LinkAttrs},
             neigh::NeighborBuilder,
         },
-        test_setup,
     };
 
     use super::*;

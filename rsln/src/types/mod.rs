@@ -4,6 +4,7 @@ use anyhow::Result;
 use thiserror::Error;
 
 pub mod addr;
+pub mod generic;
 pub mod link;
 pub mod message;
 pub mod neigh;
@@ -36,6 +37,9 @@ pub const IFLA_VXLAN_GBP: u16 = 23;
 pub const IFLA_VXLAN_REMCSUM_NOPARTIAL: u16 = 24;
 pub const IFLA_VXLAN_FLOWBASED: u16 = 25;
 pub const IFLA_VXLAN_MAX: u16 = IFLA_VXLAN_FLOWBASED;
+
+pub const GENL_CTRL_VERSION: u8 = 2;
+pub const GENL_CTRL_CMD_GETFAMILY: u8 = 3;
 
 #[derive(Error, Debug)]
 pub enum RouteError {

@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     align_of,
     handle::zero_terminated,
-    route::{
+    types::{
         IFLA_VXLAN_AGEING, IFLA_VXLAN_FLOWBASED, IFLA_VXLAN_GBP, IFLA_VXLAN_GROUP,
         IFLA_VXLAN_GROUP6, IFLA_VXLAN_ID, IFLA_VXLAN_L2MISS, IFLA_VXLAN_L3MISS,
         IFLA_VXLAN_LEARNING, IFLA_VXLAN_LIMIT, IFLA_VXLAN_LINK, IFLA_VXLAN_LOCAL,
@@ -22,7 +22,10 @@ use crate::{
     },
 };
 
-use super::link::{Kind, LinkAttrs, Namespace, VxlanAttrs};
+use super::{
+    link::{Kind, LinkAttrs, Namespace, VxlanAttrs},
+    GENL_CTRL_CMD_GETFAMILY, GENL_CTRL_VERSION,
+};
 
 const RTA_ALIGNTO: usize = 0x4;
 const RT_ATTR_HDR_SIZE: usize = 0x4;
@@ -440,21 +443,27 @@ impl Deref for Payload {
 }
 
 impl Payload {
-    pub fn to_string(&self, len: usize) -> Result<String> {
+    pub fn to_string(&self) -> Result<String> {
         let mut buf = self.to_vec();
-        buf.truncate(len);
+        buf.truncate(self.len() - 1);
         String::from_utf8(buf).map_err(|e| e.into())
     }
 
-    pub fn to_u32(&self, len: usize) -> Result<u32> {
+    pub fn to_u16(&self) -> Result<u16> {
         let mut buf = self.to_vec();
-        buf.truncate(len);
+        buf.truncate(2);
+        Ok(u16::from_ne_bytes(buf.try_into().unwrap()))
+    }
+
+    pub fn to_u32(&self) -> Result<u32> {
+        let mut buf = self.to_vec();
+        buf.truncate(4);
         Ok(u32::from_ne_bytes(buf.try_into().unwrap()))
     }
 
-    pub fn to_i32(&self, len: usize) -> Result<i32> {
+    pub fn to_i32(&self) -> Result<i32> {
         let mut buf = self.to_vec();
-        buf.truncate(len);
+        buf.truncate(4);
         Ok(i32::from_ne_bytes(buf.try_into().unwrap()))
     }
 }
@@ -596,6 +605,32 @@ impl NeighborMessage {
     }
 }
 
+#[repr(C)]
+#[derive(Serialize, Deserialize, Default)]
+pub struct GenlMessage {
+    pub command: u8,
+    pub version: u8,
+}
+
+impl Attribute for GenlMessage {
+    fn len(&self) -> usize {
+        4
+    }
+
+    fn serialize(&self) -> Result<Vec<u8>> {
+        Ok(bincode::serialize(self)?)
+    }
+}
+
+impl GenlMessage {
+    pub fn get_family_message() -> Self {
+        Self {
+            command: GENL_CTRL_CMD_GETFAMILY,
+            version: GENL_CTRL_VERSION,
+        }
+    }
+}
+
 pub struct Buffer<'a>(&'a mut [u8]);
 
 impl<'a> From<&'a mut [u8]> for Buffer<'a> {
@@ -629,8 +664,8 @@ impl<'a> Buffer<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::route::message::LinkMessage;
-    use crate::route::message::RouteAttrHeader;
+    use crate::types::message::LinkMessage;
+    use crate::types::message::RouteAttrHeader;
 
     use super::*;
 
