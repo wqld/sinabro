@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 
 use crate::{
     core::message::Message,
-    route::{
+    types::{
         link::{Kind, Link, LinkAttrs},
         message::{Attribute, LinkMessage, RouteAttr},
     },
@@ -209,8 +209,8 @@ impl LinkHandle<'_> {
 mod tests {
     use crate::{
         handle::sock_handle,
-        route::link::{Kind, LinkAttrs},
         test_setup,
+        types::link::{Kind, LinkAttrs},
     };
 
     #[tokio::test]

@@ -6,7 +6,7 @@ use nix::sched::{setns, CloneFlags};
 use reqwest::Client;
 use rsln::{
     netlink::Netlink,
-    route::{addr::AddrFamily, link::LinkAttrs},
+    types::{addr::AddrFamily, link::LinkAttrs},
 };
 use sinabro_config::Config;
 use tokio::task::spawn_blocking;

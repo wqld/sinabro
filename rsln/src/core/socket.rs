@@ -38,6 +38,32 @@ impl Socket {
         }
     }
 
+    pub fn block(&self) -> Result<()> {
+        match unsafe {
+            libc::fcntl(
+                self.fd,
+                libc::F_SETFL,
+                libc::fcntl(self.fd, libc::F_GETFL, 0) & !libc::O_NONBLOCK,
+            )
+        } {
+            -1 => Err(Error::last_os_error()),
+            _ => Ok(()),
+        }
+    }
+
+    pub fn non_block(&self) -> Result<()> {
+        match unsafe {
+            libc::fcntl(
+                self.fd,
+                libc::F_SETFL,
+                libc::fcntl(self.fd, libc::F_GETFL, 0) | libc::O_NONBLOCK,
+            )
+        } {
+            -1 => Err(Error::last_os_error()),
+            _ => Ok(()),
+        }
+    }
+
     pub fn send(&self, buf: &[u8]) -> Result<()> {
         let (addr, addr_len) = self.sa.as_raw();
 

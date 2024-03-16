@@ -7,7 +7,7 @@ use nix::sched::{setns, CloneFlags};
 use rand::Rng;
 use rsln::{
     netlink::Netlink,
-    route::{
+    types::{
         addr::AddressBuilder,
         link::{Kind, LinkAttrs},
         routing::RoutingBuilder,

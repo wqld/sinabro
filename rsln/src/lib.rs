@@ -3,7 +3,7 @@ use anyhow::{anyhow, Result};
 pub mod core;
 pub mod handle;
 pub mod netlink;
-pub mod route;
+pub mod types;
 
 const RTA_MTU: u16 = 0x2;
 const RTA_VIA: u16 = 18;

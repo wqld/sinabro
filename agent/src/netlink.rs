@@ -5,7 +5,7 @@ use std::{
 
 use anyhow::{anyhow, Result};
 use ipnet::IpNet;
-use rsln::route::{
+use rsln::types::{
     addr::AddressBuilder,
     link::{Kind, Link, LinkAttrs, VxlanAttrs},
     neigh::NeighborBuilder,

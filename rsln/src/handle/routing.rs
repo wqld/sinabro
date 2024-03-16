@@ -8,7 +8,7 @@ use ipnet::IpNet;
 
 use crate::{
     core::message::Message,
-    route::{
+    types::{
         message::{Attribute, RouteAttr, RouteMessage},
         routing::Routing,
     },
@@ -158,8 +158,8 @@ impl RouteHandle<'_> {
 #[cfg(test)]
 mod tests {
     use crate::{
-        route::{link::LinkAttrs, routing::Via},
         test_setup,
+        types::{link::LinkAttrs, routing::Via},
     };
 
     use super::*;

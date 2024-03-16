@@ -1,4 +1,5 @@
 pub mod addr;
+pub mod generic;
 pub mod link;
 pub mod neigh;
 pub mod routing;
