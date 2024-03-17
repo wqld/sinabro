@@ -12,7 +12,6 @@ ws = ["kube/ws"]
 
 [dependencies]
 sinabro-config = { path = "../config" }
-rsln = { path = "../rsln" }
 
 axum = "0.7.2"
 aya = { git = "https://github.com/aya-rs/aya", rev = "1979da92a722bacd9c984865a4c7108e22fb618f", features = [
@@ -27,6 +26,7 @@ log = "0.4"
 ipnet = "2.9.0"
 kube = { version = "0.88.1", features = ["runtime", "derive"] }
 k8s-openapi = { version = "0.21.0", features = ["latest"] }
+rsln = "0.0"
 serde = "1.0"
 serde_yaml = "0.9"
 serde_json = "1.0"

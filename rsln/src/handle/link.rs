@@ -1,6 +1,7 @@
 use std::ops::{Deref, DerefMut};
 
 use anyhow::{anyhow, Result};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
 use crate::{
     core::message::Message,
@@ -135,6 +136,20 @@ impl LinkHandle<'_> {
             }
             _ => Err(anyhow!("multiple links found")),
         }
+    }
+
+    pub fn list(&mut self) -> Result<Vec<Box<dyn Link>>> {
+        let mut req = Message::new(libc::RTM_GETLINK, libc::NLM_F_DUMP);
+        let msg = LinkMessage::new(libc::AF_UNSPEC);
+        let attr = RouteAttr::new(libc::IFLA_EXT_MASK, &libc::RTEXT_FILTER_VF.to_ne_bytes());
+        req.add(&msg.serialize()?);
+        req.add(&attr.serialize()?);
+
+        let res = self.request(&mut req, libc::RTM_NEWLINK)?;
+
+        res.par_iter()
+            .map(|m| Ok(Kind::from(m.as_slice()).into_boxed()))
+            .collect()
     }
 
     pub fn up<T: Link + ?Sized>(&mut self, link: &T) -> Result<()> {
@@ -363,5 +378,17 @@ mod tests {
 
         assert_eq!(link.attrs().index, 1);
         assert_eq!(link.attrs().name, "lo");
+    }
+
+    #[test]
+    fn test_link_list() {
+        test_setup!();
+        let mut handle = sock_handle::SocketHandle::new(libc::NETLINK_ROUTE);
+        let mut link_handle = handle.handle_link();
+
+        let links = link_handle.list().unwrap();
+
+        assert!(!links.is_empty());
+        assert!(links.iter().any(|link| link.attrs().name == "lo"));
     }
 }

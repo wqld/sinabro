@@ -1,6 +1,6 @@
 [package]
 name = "rsln"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/wqld/sinabro/tree/main/rsln"
@@ -18,3 +18,4 @@ tokio = { version = "1", features = ["full"] }
 nix = { version = "0.28.0", features = ["sched", "user"] }
 derive_builder = "0.20.0"
 sysctl = "0.5"
+rayon = "1.9"
