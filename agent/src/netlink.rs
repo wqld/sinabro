@@ -44,10 +44,7 @@ impl<'a> DerefMut for Netlink<'a> {
 
 impl<'a> Netlink<'a> {
     pub fn new() -> Self {
-        Self {
-            netlink: rsln::netlink::Netlink::new(),
-            ..Default::default()
-        }
+        Self::default()
     }
 
     pub fn init(host_ip: &'a str, pod_cidr: &'a IpNet, node_routes: &'a [NodeRoute]) -> Self {

@@ -64,6 +64,14 @@ impl Netlink {
         Ok(())
     }
 
+    pub fn link_list(&mut self) -> Result<Vec<Box<dyn Link>>> {
+        self.sockets
+            .entry(libc::NETLINK_ROUTE)
+            .or_insert(SocketHandle::new(libc::NETLINK_ROUTE))
+            .handle_link()
+            .list()
+    }
+
     pub fn link_get(&mut self, attr: &LinkAttrs) -> Result<Box<dyn Link>> {
         self.sockets
             .entry(libc::NETLINK_ROUTE)
@@ -268,5 +276,15 @@ mod tests {
 
         assert!(link.is_ok());
         println!("{:?}", link.unwrap().kind());
+    }
+
+    #[test]
+    fn test_list_links() {
+        test_setup!();
+        let mut netlink = Netlink::new();
+        let links = netlink.link_list().unwrap();
+
+        assert!(!links.is_empty());
+        assert!(links.iter().any(|link| link.attrs().name == "lo"));
     }
 }

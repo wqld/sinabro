@@ -171,6 +171,12 @@ impl From<&[u8]> for Kind {
     }
 }
 
+impl Kind {
+    pub fn into_boxed(self) -> Box<dyn Link> {
+        Box::new(self)
+    }
+}
+
 pub trait Link: Send {
     fn link_type(&self) -> &str;
     fn attrs(&self) -> &LinkAttrs;
