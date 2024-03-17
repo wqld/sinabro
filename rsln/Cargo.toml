@@ -1,6 +1,6 @@
 [package]
 name = "rsln"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 license = "Apache-2.0"
 repository = "https://github.com/wqld/sinabro/tree/main/rsln"
