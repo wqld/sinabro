@@ -42,7 +42,7 @@ tokio = { version = "1.25", features = [
 tracing = "0.1"
 
 [dev-dependencies]
-http = "0.2"
+http = "1.1"
 http-body-util = "0.1.0"
 hyper = "0.14"
 reqwest = { version = "0.12", features = ["json"] }
