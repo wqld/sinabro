@@ -46,6 +46,14 @@ impl TryFrom<&[u8]> for GenlOps {
     }
 }
 
+impl Deref for GenlOps {
+    type Target = Vec<GenlOp>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct GenlMulticastGroup {
     pub id: u32,
@@ -85,6 +93,14 @@ impl TryFrom<&[u8]> for GenlMulticastGroups {
             .collect();
 
         Ok(Self(groups?))
+    }
+}
+
+impl Deref for GenlMulticastGroups {
+    type Target = Vec<GenlMulticastGroup>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 
