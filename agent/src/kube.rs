@@ -154,7 +154,7 @@ impl Context {
 mod tests {
     use futures::pin_mut;
     use http::{Request, Response};
-    use hyper::Body;
+    use kube::client::Body;
     use kube::core::ObjectList;
     use tower_test::mock;
 
