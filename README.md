@@ -6,7 +6,6 @@ Sinabro is a networking solution for Kubernetes that leverages eBPF to provide h
 
 - **[agent](https://github.com/wqld/sinabro/tree/main/agent)**: The Sinabro agent is a daemon that runs on each node in the Kubernetes cluster. It is responsible for managing the network interfaces and routing tables required by the Sinabro CNI. For high performance, it utilizes eBPF programs.
 - **[cni](https://github.com/wqld/sinabro/tree/main/cni)**: The Sinabro CNI is a container network interface plugin that is responsible for setting up the network interfaces and routing tables required by the pods in the Kubernetes cluster.
-- **[rsln](https://github.com/wqld/sinabro/tree/main/rsln)**: A netlink library implemented in Rust that provides the netlink protocol based kernel interfaces required by the Sinabro project.
 - **[wgctrl](https://github.com/wqld/sinabro/tree/main/wgctrl)**: A Rust implementation of the [wgctrl-go](https://github.com/WireGuard/wgctrl-go) project, this is a WireGuard control library that provides the WireGuard control interface required by the Sinabro project.
 
 ## Getting Started
