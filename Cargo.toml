@@ -1,4 +1,4 @@
 [workspace]
-members = ["xtask", "agent", "common", "config", "cni", "rsln", "wgctrl"]
+members = ["xtask", "agent", "common", "config", "cni", "wgctrl"]
 
 resolver = "2"
