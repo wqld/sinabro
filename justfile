@@ -7,10 +7,10 @@ setup-kind-cluster: build-image
     kind create cluster --config tests/e2e/kind-config.yaml
     kind load docker-image sinabro:test
 
-clean-kind-cluster:
+delete-kind-cluster:
     kind delete cluster
 
-deploy-agent: setup-kind-cluster
+create-kind-cluster-with-sinabro: setup-kind-cluster
     kubectl apply -f tests/e2e/deploy-test/agent.yaml
 
 deploy-test-pods:
@@ -27,3 +27,6 @@ e2e-test: build-image
 
 launch-rust-env:
     docker run --rm --privileged -it -v $(pwd):/source rust sh
+
+run-rsb:
+    kubectl run rsb --image gamelife1314/rsb -- -d 30 -c 500 -l http://$(kubectl get pod nginx-worker -o jsonpath='{.status.podIP}')

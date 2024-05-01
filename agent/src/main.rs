@@ -24,6 +24,9 @@ use crate::netlink::Netlink;
 struct Opt {
     #[clap(short, long, default_value = "eth0")]
     iface: String,
+
+    #[clap(short, long, default_value = "/sys/fs/cgroup")]
+    cgroup_path: String,
 }
 
 #[tokio::main]
@@ -42,7 +45,7 @@ async fn main() -> Result<()> {
     setup_cni_config(&cluster_cidr, &host_route.pod_cidr)?;
     setup_network(&host_ip, host_route, &node_routes)?;
 
-    let mut bpf_loader = BpfLoader::load(&opt.iface)?;
+    let mut bpf_loader = BpfLoader::load(&opt.iface, &opt.cgroup_path)?;
     BpfLogger::init(&mut bpf_loader.bpf)?;
 
     bpf_loader

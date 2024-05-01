@@ -3,22 +3,30 @@
 
 use core::mem;
 
-use aya_bpf::{
-    bindings::{BPF_F_PSEUDO_HDR, TC_ACT_PIPE, TC_ACT_SHOT},
+use aya_ebpf::bindings::sk_action::SK_PASS;
+use aya_ebpf::bindings::{
+    sk_msg_md, BPF_ANY, BPF_F_INGRESS, BPF_F_PSEUDO_HDR, BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB,
+    BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB, BPF_SOCK_OPS_STATE_CB_FLAG, TC_ACT_PIPE, TC_ACT_SHOT,
+};
+use aya_ebpf::maps::SockHash;
+use aya_ebpf::{
     cty::c_long,
     helpers::{bpf_csum_diff, bpf_get_prandom_u32},
-    macros::{classifier, map},
+    macros::{classifier, map, sk_msg, sock_ops},
     maps::HashMap,
-    programs::TcContext,
+    programs::{SkMsgContext, SockOpsContext, TcContext},
 };
-use aya_log_ebpf::info;
-use common::{NatKey, NetworkInfo, OriginValue, CLUSTER_CIDR_KEY, HOST_IP_KEY};
+use aya_log_ebpf::{error, info};
+use common::{NatKey, NetworkInfo, OriginValue, SockKey, CLUSTER_CIDR_KEY, HOST_IP_KEY};
 use memoffset::offset_of;
 use network_types::{
     eth::{EthHdr, EtherType},
     ip::{IpProto, Ipv4Hdr},
     tcp::TcpHdr,
 };
+
+#[map]
+pub static mut SOCK_OPS_MAP: SockHash<SockKey> = SockHash::with_max_entries(65535, 0);
 
 #[map]
 static mut NET_CONFIG_MAP: HashMap<u8, NetworkInfo> = HashMap::with_max_entries(2, 0);
@@ -273,6 +281,117 @@ fn is_ip_in_cidr(ip: u32, cidr: &NetworkInfo) -> bool {
 
 fn is_node_ip(ip: u32) -> bool {
     unsafe { NODE_MAP.get(&ip).is_some() }
+}
+
+#[sock_ops]
+pub fn tcp_accelerate(ctx: SockOpsContext) -> u32 {
+    try_tcp_accelerate(ctx).unwrap_or(0)
+}
+
+fn try_tcp_accelerate(ctx: SockOpsContext) -> Result<u32, ()> {
+    let family = ctx.family();
+
+    // currently only support IPv4
+    if family != 2 {
+        return Ok(0);
+    }
+
+    match ctx.op() {
+        BPF_SOCK_OPS_ACTIVE_ESTABLISHED_CB | BPF_SOCK_OPS_PASSIVE_ESTABLISHED_CB => {
+            // info!(
+            //     &ctx,
+            //     "<<< ipv4 op = {}, src {:i}:{} => dst {:i}:{}",
+            //     ctx.op(),
+            //     u32::from_be(ctx.local_ip4()),
+            //     ctx.local_port(),
+            //     u32::from_be(ctx.remote_ip4()),
+            //     u32::from_be(ctx.remote_port())
+            // );
+
+            let mut sock_key = extract_sock_key_from(&ctx);
+
+            unsafe {
+                SOCK_OPS_MAP
+                    .update(&mut sock_key, &mut *ctx.ops, BPF_ANY.into())
+                    .map_err(|e| {
+                        error!(&ctx, "failed to update SOCK_OPS_MAP: {}", e);
+                    })?;
+            }
+
+            ctx.set_cb_flags(BPF_SOCK_OPS_STATE_CB_FLAG as i32)
+                .map_err(|e| {
+                    error!(&ctx, "failed to set BPF_SOCK_OPS_STATE_CB_FLAG: {}", e);
+                })?;
+        }
+        // BPF_SOCK_OPS_STATE_CB => match ctx.arg(1) {
+        //     BPF_TCP_CLOSE | BPF_TCP_CLOSE_WAIT | BPF_TCP_LAST_ACK => {
+        //         // info!(
+        //         //     &ctx,
+        //         //     ">>> ipv4 op = {}, src {:i}:{} => dst {:i}:{}, state: {}",
+        //         //     ctx.op(),
+        //         //     u32::from_be(ctx.local_ip4()),
+        //         //     ctx.local_port(),
+        //         //     u32::from_be(ctx.remote_ip4()),
+        //         //     u32::from_be(ctx.remote_port()),
+        //         //     ctx.arg(1)
+        //         // );
+        //     }
+        //     _ => {}
+        // },
+        _ => {}
+    }
+
+    Ok(0)
+}
+
+fn extract_sock_key_from(ctx: &SockOpsContext) -> SockKey {
+    SockKey {
+        src_ip: u32::from_be(ctx.local_ip4()),
+        dst_ip: u32::from_be(ctx.remote_ip4()),
+        src_port: ctx.local_port(),
+        dst_port: u32::from_be(ctx.remote_port()),
+        family: ctx.family(),
+    }
+}
+
+#[sk_msg]
+pub fn tcp_bypass(ctx: SkMsgContext) -> u32 {
+    try_tcp_bypass(ctx).unwrap_or(SK_PASS)
+}
+
+fn try_tcp_bypass(ctx: SkMsgContext) -> Result<u32, ()> {
+    // info!(&ctx, "received a message on the socket");
+
+    let msg = unsafe { &*ctx.msg };
+
+    if msg.family != 2 {
+        return Ok(SK_PASS);
+    }
+
+    let mut sock_key = sk_msg_extract_key(msg);
+
+    unsafe { SOCK_OPS_MAP.redirect_msg(&ctx, &mut sock_key, BPF_F_INGRESS as u64) };
+    // info!(
+    //     &ctx,
+    //     "tcp_bypass: {:i}:{} <-> {:i}:{} / ret: {}",
+    //     sock_key.src_ip,
+    //     sock_key.src_port,
+    //     sock_key.dst_ip,
+    //     sock_key.dst_port,
+    //     ret
+    // );
+
+    Ok(SK_PASS)
+}
+
+fn sk_msg_extract_key(msg: &sk_msg_md) -> SockKey {
+    SockKey {
+        src_ip: u32::from_be(msg.remote_ip4),
+        dst_ip: u32::from_be(msg.local_ip4),
+        src_port: u32::from_be(msg.remote_port),
+        dst_port: msg.local_port,
+        family: msg.family,
+    }
 }
 
 #[panic_handler]

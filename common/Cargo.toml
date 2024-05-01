@@ -8,7 +8,7 @@ default = []
 user = ["aya"]
 
 [dependencies]
-aya = { git = "https://github.com/aya-rs/aya", rev = "1979da92a722bacd9c984865a4c7108e22fb618f", optional = true }
+aya = { version = "0.12", optional = true }
 
 [lib]
 path = "src/lib.rs"
