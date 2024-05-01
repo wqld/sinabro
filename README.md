@@ -41,3 +41,81 @@ just deploy-agent
 - [ ] Build an XDP-based BGP Peering Router
 - [ ] Implement Service Load Balancing
 - [ ] Collect Network Telemetry with eBPF
+
+### TCP Acceleration
+
+An eBPF program has been applied to accelerate TCP transmission between pods communicating on the same host machine. This avoids unnecessary traversing through the Linux network stack, enabling efficient communication between local socket pairs.
+
+#### Without eBPF Acceleration
+
+```sh
+Get "http://10.244.1.2" with for 10s using 50 connections
+Statistics         Avg          Stdev          Max
+  Reqs/sec       77688.89      1898.47       80410.00
+  Latency        592.08µs      411.46µs       8.69ms
+  Latency Distribution
+     50%     309.77µs
+     75%     409.98µs
+     90%     490.44µs
+     99%     571.86µs
+  HTTP codes:
+    1XX - 0, 2XX - 777807, 3XX - 0, 4XX - 0, 5XX - 0
+    others - 0
+  Throughput:   84447.90/s
+
+Get "http://10.244.1.2" with for 30s using 500 connections
+Statistics         Avg          Stdev          Max
+  Reqs/sec       73050.03      1374.04       75450.00
+  Latency        791.10µs      822.26µs      54.64ms
+  Latency Distribution
+     50%     361.55µs
+     75%     503.02µs
+     90%     622.58µs
+     99%     749.10µs
+  HTTP codes:
+    1XX - 0, 2XX - 2192021, 3XX - 0, 4XX - 0, 5XX - 0
+    others - 0
+  Throughput:  632031.35/s
+```
+
+### With eBPF Acceleration
+
+```sh
+Get "http://10.244.1.2" with for 10s using 50 connections
+Statistics         Avg          Stdev          Max
+  Reqs/sec       81633.44      1638.01       84030.00
+  Latency        539.51µs      366.21µs      11.88ms
+  Latency Distribution
+     50%     285.54µs
+     75%     377.27µs
+     90%     449.91µs
+     99%     521.56µs
+  HTTP codes:
+    1XX - 0, 2XX - 812374, 3XX - 0, 4XX - 0, 5XX - 0
+    others - 0
+  Throughput:   92676.69/s
+
+Get "http://10.244.1.2" with for 30s using 500 connections
+Statistics         Avg          Stdev          Max
+  Reqs/sec       76810.21      1745.58       79262.00
+  Latency        650.09µs      714.47µs      61.40ms
+  Latency Distribution
+     50%     305.78µs
+     75%     422.25µs
+     90%     518.34µs
+     99%     616.42µs
+  HTTP codes:
+    1XX - 0, 2XX - 2305881, 3XX - 0, 4XX - 0, 5XX - 0
+    others - 0
+  Throughput:  769121.91/s
+```
+
+Tests were conducted with 50 connections for 10 seconds and 500 connections for 30 seconds.
+The results indicate an increase in the average request rate and throughput, and a decrease in latency.
+
+| Test Case | Requests/sec | Throughput | Latency |
+| --- | --- | --- | --- |
+| Without Acceleration (10s) | 77688.89 | 84447.90/s | 592.08µs |
+| With Acceleration (10s) | 81633.44 | 92676.69/s | 539.51µs |
+| Without Acceleration (30s) | 73050.03 | 632031.35/s | 791.10µs |
+| With Acceleration (30s) | 76810.21 | 769121.91/s | 650.09µs |

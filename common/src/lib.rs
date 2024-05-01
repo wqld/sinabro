@@ -35,3 +35,16 @@ pub struct NetworkInfo {
 
 #[cfg(feature = "user")]
 unsafe impl aya::Pod for NetworkInfo {}
+
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct SockKey {
+    pub src_ip: u32,
+    pub dst_ip: u32,
+    pub src_port: u32,
+    pub dst_port: u32,
+    pub family: u32,
+}
+
+#[cfg(feature = "user")]
+unsafe impl aya::Pod for SockKey {}
