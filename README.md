@@ -78,7 +78,7 @@ Statistics         Avg          Stdev          Max
   Throughput:  632031.35/s
 ```
 
-### With eBPF Acceleration
+#### With eBPF Acceleration
 
 ```sh
 Get "http://10.244.1.2" with for 10s using 50 connections
