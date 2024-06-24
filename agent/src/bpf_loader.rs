@@ -1,14 +1,15 @@
 use std::net::Ipv4Addr;
 
 use anyhow::Result;
-use aya::maps::{HashMap, SockHash};
-use aya::programs::{tc, SchedClassifier, SkMsg, SockOps, TcAttachType};
+use aya::maps::HashMap;
+use aya::programs::{tc, SchedClassifier, TcAttachType};
 use aya::{include_bytes_aligned, Bpf};
-use common::{NetworkInfo, SockKey, CLUSTER_CIDR_KEY, HOST_IP_KEY};
+use common::{NetworkInfo, CLUSTER_CIDR_KEY, HOST_IP_KEY};
 
 pub struct BpfLoader {
     pub bpf: Bpf,
     iface: String,
+    #[allow(dead_code)]
     cgroup_path: String,
 }
 
@@ -77,19 +78,19 @@ impl BpfLoader {
                 .expect("failed to insert node ip");
         });
 
-        let tcp_accelerate: &mut SockOps =
-            self.bpf.program_mut("tcp_accelerate").unwrap().try_into()?;
-        let cgroup = std::fs::File::open(&self.cgroup_path)?;
-        tcp_accelerate.load()?;
-        tcp_accelerate.attach(cgroup)?;
+        // let tcp_accelerate: &mut SockOps =
+        //     self.bpf.program_mut("tcp_accelerate").unwrap().try_into()?;
+        // let cgroup = std::fs::File::open(&self.cgroup_path)?;
+        // tcp_accelerate.load()?;
+        // tcp_accelerate.attach(cgroup)?;
 
-        let sock_ops_map: SockHash<_, SockKey> =
-            self.bpf.map("SOCK_OPS_MAP").unwrap().try_into()?;
-        let map_fd = sock_ops_map.fd().try_clone()?;
+        // let sock_ops_map: SockHash<_, SockKey> =
+        //     self.bpf.map("SOCK_OPS_MAP").unwrap().try_into()?;
+        // let map_fd = sock_ops_map.fd().try_clone()?;
 
-        let tcp_bypass: &mut SkMsg = self.bpf.program_mut("tcp_bypass").unwrap().try_into()?;
-        tcp_bypass.load()?;
-        tcp_bypass.attach(&map_fd)?;
+        // let tcp_bypass: &mut SkMsg = self.bpf.program_mut("tcp_bypass").unwrap().try_into()?;
+        // tcp_bypass.load()?;
+        // tcp_bypass.attach(&map_fd)?;
 
         Ok(())
     }

@@ -105,7 +105,9 @@ spec:
           securityContext:
             privileged: true
             capabilities:
-              add: ["NET_RAW", "NET_ADMIN"]
+              add: 
+              - NET_RAW
+              - NET_ADMIN
       volumes:
       - name: cni-bin
         hostPath:
