@@ -119,13 +119,9 @@ impl Context {
         Ok(())
     }
 
-    async fn exec_command_in_pod<I: Debug, T>(
-        pods: &Api<Pod>,
-        name: &str,
-        command: I,
-    ) -> Result<String>
+    async fn exec_command_in_pod<I, T>(pods: &Api<Pod>, name: &str, command: I) -> Result<String>
     where
-        I: IntoIterator<Item = T>,
+        I: IntoIterator<Item = T> + Debug,
         T: Into<String>,
     {
         let attached = pods
