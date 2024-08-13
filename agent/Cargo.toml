@@ -45,7 +45,7 @@ http-body-util = "0.1.1"
 hyper = "1"
 reqwest = { version = "0.12", features = ["json"] }
 tempfile = "3"
-tower = { version = "0.4", features = ["util"] }
+tower = { version = "0.5", features = ["util"] }
 tower-test = "0.4"
 
 [[bin]]
